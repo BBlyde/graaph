@@ -15,4 +15,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://paceman.gg',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/api/, '/stats/aa/api')
+      }
+    }
+  }
 })
