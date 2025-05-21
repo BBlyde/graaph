@@ -1,5 +1,4 @@
 <template>
-  App.vue
   <div class="container">
     <RouterView></RouterView>
   </div>
