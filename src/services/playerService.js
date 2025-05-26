@@ -1,10 +1,11 @@
-export async function getPlayerById(id) {
+export async function getPlayerById(id, day) {
+  console.log(day)
   // Calling the Paceman API
-  const res = await fetch(`/api/getAllData/?days=1`)
-  if (!res.ok) throw new Error('Erreur API')
+  const res = await fetch(`/api/getAllData/?days=${day}`)
+  if (!res.ok) throw new Error('Api error')
   const json = await res.json()
   const apiPlayer = json.data
-
+  // console.log(apiPlayer)
   // Adapting all datas to only get specific player's data
   const runsPlayer = []
   apiPlayer.forEach(run => {
@@ -51,6 +52,7 @@ export async function getPlayerById(id) {
       counters[`counter${key.charAt(0).toUpperCase() + key.slice(1)}`] = datas[key].length
     }
   });
+  // console.log(counters.counterNether)
   
   return {
     nickname,

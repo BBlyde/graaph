@@ -1,4 +1,9 @@
 <template>
+  <div class="button-group">
+      <button @click="changeDay(1)">24 Hours</button>
+      <button @click="changeDay(7)">7 Days</button>
+      <button @click="changeDay(30)">30 Days</button>
+    </div>
   <div v-if="loading">Loading..</div>
   <div v-else-if="player">
     <PlayerDetails :player="player" />
@@ -14,14 +19,20 @@ import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
 import { getPlayerById } from '@/services/playerService.js'
 
+const props = defineProps({
+  id: String
+})
+
 const route = useRoute()
 const player = ref(null)
 const loading = ref(true)
+const day = ref(1)
 
-const fetchPlayer = async (id) => {
+const fetchPlayer = async (id, day) => {
+  
   loading.value = true
   try {
-    player.value = await getPlayerById(id)
+    player.value = await getPlayerById(id, day)
   } catch (e) {
     player.value = null
   } finally {
@@ -29,11 +40,18 @@ const fetchPlayer = async (id) => {
   }
 }
 
+function changeDay(newDay) {
+  if (newDay !== day.value) {
+    day.value = newDay
+    fetchPlayer(route.params.id, day.value)
+  }
+}
+
 onMounted(() => {
-  fetchPlayer(route.params.id)
+  fetchPlayer(route.params.id, day.value)
 })
 
 watch(() => route.params.id, (newId) => {
-  fetchPlayer(newId)
+  fetchPlayer(newId, day.value)
 })
 </script>
