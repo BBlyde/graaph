@@ -1,5 +1,4 @@
 export async function getPlayerById(id, day) {
-  console.log(day)
   // Calling the Paceman API
   const res = await fetch(`/api/getAllData/?days=${day}`)
   if (!res.ok) throw new Error('Api error')
