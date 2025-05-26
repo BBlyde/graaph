@@ -35,13 +35,27 @@ export async function getPlayerById(id) {
   });
 
   /* Building each avg value by split */
-  const avgNether = Math.round(
-    datas.nether.reduce((sum, m) => sum + m, 0) / datas.nether.length
-  )
+  const averages = {};
+  splits.forEach(key => {
+    if (datas[key] && datas[key].length > 0) {
+      averages[`avg${key.charAt(0).toUpperCase() + key.slice(1)}`] = Math.round(
+        datas[key].reduce((sum, m) => sum + m, 0) / datas[key].length
+      );
+    }
+  });
 
+  /* Building each counter value by split */
+  const counters = {};
+  splits.forEach(key => {
+    if (datas[key] && datas[key].length > 0) {
+      counters[`counter${key.charAt(0).toUpperCase() + key.slice(1)}`] = datas[key].length
+    }
+  });
+  
   return {
     nickname,
     datas,
-    avgNether
+    averages,
+    counters
   }
 }
