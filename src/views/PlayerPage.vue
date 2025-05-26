@@ -1,4 +1,7 @@
 <template>
+  <router-link to="/">
+    <button>Go to Home</button>
+  </router-link>
   <div class="button-group">
       <button @click="changeDay(1)">24 Hours</button>
       <button @click="changeDay(7)">7 Days</button>

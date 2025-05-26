@@ -4,12 +4,21 @@ export async function getPlayerById(id, day) {
   if (!res.ok) throw new Error('Api error')
   const json = await res.json()
   const apiPlayer = json.data
-  // console.log(apiPlayer)
+
   // Adapting all datas to only get specific player's data
   const runsPlayer = []
+  const now = new Date();
+  const xDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000 * day);
   apiPlayer.forEach(run => {
+    // Only adding the runs from the player id (url)
     if (run.nickname.toLowerCase() == id.toLowerCase()) {
-      runsPlayer.push(run)
+      // Making sure the run was played x days ago
+      if (run.insertTime >= xDayAgo.toISOString()) {
+        // Making sure the run wasn't played in any% conditions
+        if (run.nether > 120000 || run.elytra) {
+          runsPlayer.push(run)
+        }
+      }
     }
   });
 
@@ -51,8 +60,7 @@ export async function getPlayerById(id, day) {
       counters[`counter${key.charAt(0).toUpperCase() + key.slice(1)}`] = datas[key].length
     }
   });
-  // console.log(counters.counterNether)
-  
+
   return {
     nickname,
     datas,
