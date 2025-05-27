@@ -1,6 +1,9 @@
 <template>
     Graaph
     <input v-model="playerId" @keyup.enter="goToPlayer" placeholder="Username" />
+    <h1 class="text-3xl font-bold underline">
+    Hello world!
+  </h1>
 </template>
 
 <script setup>
