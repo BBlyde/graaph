@@ -7,7 +7,7 @@ export async function getPlayerById(id, day) {
 
   // Adapting all datas to only get specific player's data
   const runsPlayer = []
-  const now = new Date();
+  const now = new Date()
   const xDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000 * day);
   apiPlayer.forEach(run => {
     // Only adding the runs from the player id (url)
@@ -28,7 +28,7 @@ export async function getPlayerById(id, day) {
 
   // Splits informations stored into a datas object
   const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
-  let datas = {};
+  let datas = {}
   runsPlayer.forEach(run => {
     for (const key in run) {
       // Verifying each split was played in each run
@@ -44,7 +44,7 @@ export async function getPlayerById(id, day) {
   });
 
   /* Building each avg value by split */
-  const averages = {};
+  const averages = {}
   splits.forEach(key => {
     if (datas[key] && datas[key].length > 0) {
       averages[`avg${key.charAt(0).toUpperCase() + key.slice(1)}`] = Math.round(
@@ -54,10 +54,18 @@ export async function getPlayerById(id, day) {
   });
 
   /* Building each counter value by split */
-  const counters = {};
+  const counters = {}
   splits.forEach(key => {
     if (datas[key] && datas[key].length > 0) {
       counters[`counter${key.charAt(0).toUpperCase() + key.slice(1)}`] = datas[key].length
+    }
+  });
+
+  /* Building each fastest value  */
+  const fastests = {}
+  splits.forEach(key => {
+    if (datas[key] && datas[key].length > 0) {
+      fastests[`fastest${key.charAt(0).toUpperCase() + key.slice(1)}`] = Math.min(...datas[key])
     }
   });
 
@@ -65,6 +73,7 @@ export async function getPlayerById(id, day) {
     nickname,
     datas,
     averages,
-    counters
+    counters,
+    fastests
   }
 }

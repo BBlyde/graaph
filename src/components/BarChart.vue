@@ -54,13 +54,18 @@ const chartOptions = {
             callbacks: {
                 label: context => {
                     const split = context.label
+
                     const avgKey = `avg${split}`
-                    const avg = props.player.averages[avgKey]
-                    const minutes = Math.floor(avg / 60000)
-                    const seconds = Math.floor((avg % 60000) / 1000)
+                    const avgMs = props.player.averages[avgKey]
+                    const avg = formatMsToMinSec(avgMs)
+
+                    const fastestKey = `fastest${split}`
+                    const fastestMs = props.player.fastests[fastestKey]
+                    const fastest = formatMsToMinSec(fastestMs)
 
                     return [
-                        `Average: ${minutes}:${seconds.toString().padStart(2, '0')}`
+                        `Average: ${avg}`,
+                        `Fastest: ${fastest}`
                     ]
                 }
             }
@@ -71,5 +76,11 @@ const chartOptions = {
             display: false
         }
     }
+}
+
+function formatMsToMinSec(ms) {
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 </script>
