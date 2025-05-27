@@ -52,8 +52,10 @@ const chartOptions = {
             mode: 'index',
             displayColors: false,
             callbacks: {
+                title: () => null,
                 label: context => {
                     const split = context.label
+                    const runCount = context.raw
 
                     const avgKey = `avg${split}`
                     const avgMs = props.player.averages[avgKey]
@@ -64,6 +66,7 @@ const chartOptions = {
                     const fastest = formatMsToMinSec(fastestMs)
 
                     return [
+                        `${split}: ${runCount}`,
                         `Average: ${avg}`,
                         `Fastest: ${fastest}`
                     ]
