@@ -1,18 +1,19 @@
 <template>
   <router-link to="/">
-    <button>Go to Home</button>
+    <button>Home</button>
   </router-link>
   <div class="button-group">
-      <button @click="changeDay(1)">24 Hours</button>
-      <button @click="changeDay(7)">7 Days</button>
-      <button @click="changeDay(30)">30 Days</button>
-    </div>
+    <button @click="changeDay(1)">24 Hours</button>
+    <button @click="changeDay(7)">7 Days</button>
+    <button @click="changeDay(30)">30 Days</button>
+  </div>
   <div v-if="loading">Loading..</div>
   <div v-else-if="player">
+    <BarChart :player="player" />
     <PlayerDetails :player="player" />
   </div>
   <div v-else>
-    Player not found
+    No data for the player
   </div>
 </template>
 
@@ -21,6 +22,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
 import { getPlayerById } from '@/services/playerService.js'
+import BarChart from '@/components/BarChart.vue'
 
 const props = defineProps({
   id: String
@@ -32,7 +34,7 @@ const loading = ref(true)
 const day = ref(1)
 
 const fetchPlayer = async (id, day) => {
-  
+
   loading.value = true
   try {
     player.value = await getPlayerById(id, day)
