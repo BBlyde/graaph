@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/views/HomePage.vue'
 import StatsPage from '@/views/StatsPage.vue'
-import AboutPage from '@/views/AboutPage.vue'
-import PlayerPage from '@/views/PlayerPage.vue'
+import PlayerHome from '@/views/PlayerHome.vue'
+import PlayerStats from '@/views/PlayerStats.vue'
 
 const routes = [
   {
@@ -16,14 +16,14 @@ const routes = [
     component: StatsPage
   },
   {
-    path: '/About',
-    name: 'About',
-    component: AboutPage
+    path: '/player',
+    name: 'PlayerHome',
+    component: PlayerHome
   },
   {
     path: '/player/:id',
-    name: 'PlayerPage',
-    component: PlayerPage,
+    name: 'PlayerStats',
+    component: PlayerStats,
     props: true
   }
 ]
