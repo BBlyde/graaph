@@ -1,0 +1,1 @@
+<template>Stats Page</template>

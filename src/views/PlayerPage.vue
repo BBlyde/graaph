@@ -1,19 +1,20 @@
 <template>
-  <router-link to="/">
-    <button>Home</button>
-  </router-link>
-  <div class="button-group">
-    <button @click="changeDay(1)">24 Hours</button>
-    <button @click="changeDay(7)">7 Days</button>
-    <button @click="changeDay(30)">30 Days</button>
-  </div>
-  <div v-if="loading">Loading..</div>
-  <div v-else-if="player">
-    <BarChart :player="player" />
-    <PlayerDetails :player="player" />
-  </div>
-  <div v-else>
-    No data for the player
+  <div class="flex-row">
+    <select v-model="selectedDays" @change="changeDay(selectedDays)" class="px-3 py-2 border rounded-md text-black">
+      <option :value="1">24 Hours</option>
+      <option :value="7">7 Days</option>
+      <option :value="30">30 Days</option>
+    </select>
+    <div class="w-2xl">
+      <div v-if="loading">Loading..</div>
+      <div v-else-if="player">
+        <BarChart :player="player" />
+        <PlayerDetails :player="player" />
+      </div>
+      <div v-else>
+        No data for the player
+      </div>
+    </div>
   </div>
 </template>
 
@@ -32,6 +33,7 @@ const route = useRoute()
 const player = ref(null)
 const loading = ref(true)
 const day = ref(1)
+const selectedDays = ref(1)
 
 const fetchPlayer = async (id, day) => {
 

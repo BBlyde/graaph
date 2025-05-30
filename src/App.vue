@@ -1,13 +1,10 @@
 <template>
-  <div class="container">
+  <DefaultLayout>
     <RouterView></RouterView>
-  </div>
+  </DefaultLayout>
 </template>
 
 <script setup>
 import { RouterView } from 'vue-router';
-
-
+import DefaultLayout from '@/layouts/DefaultLayout.vue'
 </script>
-
-<style></style>
