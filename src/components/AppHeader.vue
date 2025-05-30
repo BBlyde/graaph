@@ -7,8 +7,8 @@
 
             <nav class="flex-1 text-center space-x-6">
                 <router-link to="/" class="hover:underline">Home</router-link>
-                <router-link to="/Stats" class="hover:underline">Stats</router-link>
-                <router-link to="/Player" class="hover:underline">Player</router-link>
+                <router-link to="/stats" class="hover:underline">Stats</router-link>
+                <router-link to="/player" class="hover:underline">Player</router-link>
             </nav>
 
             <div class="flex-1 text-right">
