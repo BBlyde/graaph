@@ -22,7 +22,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
-import { getPlayerById } from '@/services/playerService.js'
+import { getAllDataByDay, trimAllDataByPlayerId } from '@/services/playerService.js'
 import BarChart from '@/components/BarChart.vue'
 
 const props = defineProps({
@@ -32,6 +32,7 @@ const props = defineProps({
 const route = useRoute()
 const player = ref(null)
 const loading = ref(true)
+const t = ref(true)
 const day = ref(1)
 const selectedDays = ref(1)
 
@@ -39,7 +40,12 @@ const fetchPlayer = async (id, day) => {
 
   loading.value = true
   try {
-    player.value = await getPlayerById(id, day)
+    const datas = await getAllDataByDay(day)
+    const playerData = await trimAllDataByPlayerId(datas, id)
+    console.log(playerData.data.bastion)
+    if (playerData.data.bastion != undefined) {
+      player.value = playerData
+    }
   } catch (e) {
     player.value = null
   } finally {

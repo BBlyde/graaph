@@ -16,13 +16,13 @@ const props = defineProps({
     }
 })
 
-const counters = props.player.counters
+const splitData = props.player.data
 const splits = ['Nether', 'Bastion', 'Fortress', 'Stronghold', 'End', 'Elytra', 'Credits']
 const chartData = {
     labels: splits,
     datasets: [
         {
-            data: [counters.counterNether, counters.counterBastion, counters.counterFortress, counters.counterStronghold, counters.counterEnd, counters.counterElytra, counters.counterCredits],
+            data: [splitData.nether.counter, splitData.bastion.counter, splitData.fortress.counter, splitData.stronghold.counter, splitData.end.counter, splitData.elytra.counter, splitData.credits.counter],
             backgroundColor: ['#512020', '#2d2b36', '#37181d', '#686b68', '#b0b682', '#a170a0', '#366a5e']
         },
     ]
@@ -54,21 +54,22 @@ const chartOptions = {
             callbacks: {
                 title: () => null,
                 label: context => {
-                    const split = context.label
+                    const splitName = context.label
                     const runCount = context.raw
+                    const splitKey = `${splitName}`.toLowerCase()
 
-                    const avgKey = `avg${split}`
-                    const avgMs = props.player.averages[avgKey]
+                    const avgMs = props.player.data[splitKey].avg
                     const avg = formatMsToMinSec(avgMs)
+                    const avgLb = props.player.data[splitKey].lbAvg
 
-                    const fastestKey = `fastest${split}`
-                    const fastestMs = props.player.fastests[fastestKey]
+                    const fastestMs = props.player.data[splitKey].fastest
                     const fastest = formatMsToMinSec(fastestMs)
+                    const fastestLb = props.player.data[splitKey].lbFastest
 
                     return [
-                        `${split}: ${runCount}`,
-                        `Average: ${avg}`,
-                        `Fastest: ${fastest}`
+                        `${splitName}: ${runCount}`,
+                        `Average: ${avg} (#${avgLb})`,
+                        `Fastest: ${fastest} (#${fastestLb})`
                     ]
                 }
             }
