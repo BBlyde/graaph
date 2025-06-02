@@ -23,7 +23,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
-import { getAllDataByDay, trimAllDataByPlayerId } from '@/services/playerService.js'
+import { getAllDataByDay, trimAllDataByPlayerId, getDataLeaderboardByPlayer } from '@/services/playerService.js'
 import BarChart from '@/components/BarChart.vue'
 import LineChart from '@/components/LineChart.vue'
 import { Line } from 'vue-chartjs'
@@ -45,6 +45,8 @@ const fetchPlayer = async (id, day) => {
   try {
     const datas = await getAllDataByDay(day)
     const playerData = await trimAllDataByPlayerId(datas, id)
+    const place = await getDataLeaderboardByPlayer(id)
+    playerData["place"] = place
     if (playerData.data.bastion != undefined) {
       player.value = playerData
     }

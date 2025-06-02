@@ -89,7 +89,7 @@ export async function getAllDataByDay(day) {
           leaderboardFastest[split][player] = time
         } else if (cat == "counter") {
           leaderboardCounter[split][player] = time
-        } 
+        }
       })
     })
   })
@@ -206,4 +206,10 @@ export async function trimAllDataByPlayerId(datas, id) {
     nickname,
     data
   }
+}
+
+export async function getDataLeaderboardByPlayer(nickname) {
+  const response = await fetch(`/secure-api/api/leaderboard/search?cat=aa&board=rsg&name=${nickname}`)
+  const data = await response.json()
+  return data.results[0].run.place
 }

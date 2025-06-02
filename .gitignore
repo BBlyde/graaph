@@ -30,3 +30,4 @@ coverage
 *.tsbuildinfo
 
 todo.md
+.env

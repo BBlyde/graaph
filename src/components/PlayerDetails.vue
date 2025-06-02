@@ -1,11 +1,14 @@
 <template>
   <div>
+    {{  player.place }}
     {{  player }}
   </div>
 </template>
 
 <script setup>
-defineProps({
+
+const props = defineProps({
   player: Object
 })
+
 </script>
