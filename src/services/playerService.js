@@ -63,10 +63,11 @@ export async function getAllDataByDay(day) {
   /* Building the two arrays of avg and fastest time for each split and player, will be helpfull later to get leaderboard */
   const leaderboardAvg = []
   const leaderboardFastest = []
+  const leaderboardCounter = []
   // Pathing each player
   Object.entries(playersSplit).map(([player, splits]) => {
     // Pathing each split
-    Object.entries(splits).map(([split, splitTme]) => {
+    Object.entries(splits).map(([split, splitTime]) => {
       // Initializing each object
       if (!leaderboardAvg[split]) {
         leaderboardAvg[split] = []
@@ -75,14 +76,20 @@ export async function getAllDataByDay(day) {
       if (!leaderboardFastest[split]) {
         leaderboardFastest[split] = []
       }
+      // Initializing each object
+      if (!leaderboardCounter[split]) {
+        leaderboardCounter[split] = []
+      }
 
       // Adding the corresponding time to both fastest/avg array
-      Object.entries(splitTme).map(([cat, time]) => {
+      Object.entries(splitTime).map(([cat, time]) => {
         if (cat == "avg") {
           leaderboardAvg[split][player] = time
         } else if (cat == "fastest") {
           leaderboardFastest[split][player] = time
-        }
+        } else if (cat == "counter") {
+          leaderboardCounter[split][player] = time
+        } 
       })
     })
   })
@@ -114,7 +121,21 @@ export async function getAllDataByDay(day) {
       }))
     rankedFastest[split] = sorted
   }
-  return [playersSplit, rankedAvg, rankedFastest]
+
+  /* Building the leaderboard Fastest Array */
+  const rankedCounter = {}
+  for (const [split, player] of Object.entries(leaderboardCounter)) {
+    const sorted = Object.entries(player)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, number], index) => ({
+        name,
+        split,
+        number,
+        position: index + 1
+      }))
+    rankedCounter[split] = sorted
+  }
+  return [playersSplit, rankedAvg, rankedFastest, rankedCounter]
 }
 
 export async function trimAllDataByPlayerId(datas, id) {
@@ -150,6 +171,18 @@ export async function trimAllDataByPlayerId(datas, id) {
             if (fastestArray.name == id && fastestArray.split == split) {
               // Adding the leaderboard position to the datas
               splitData["lbFastest"] = fastestArray.position
+            }
+          }
+        }
+
+        // Pathing the fastest array to add the leaderboard position into the final object
+        for (const [counterSplit, counterData] of Object.entries(datas[3])) {
+          // Pathing each player in the fastest array
+          for (const [position, counterArray] of Object.entries(counterData)) {
+            // Getting the right player and split
+            if (counterArray.name == id && counterArray.split == split) {
+              // Adding the leaderboard position to the datas
+              splitData["lbCounter"] = counterArray.position
               // Adding the datas into the final object
               dataPlayer[split] = splitData
             }

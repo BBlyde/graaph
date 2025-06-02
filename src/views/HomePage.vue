@@ -13,5 +13,5 @@
     </div>
     footer:
     Inspired by the Paceman Stats website and built with their API
-    For questions or any feedback, please ping on discord (@blyde_) 
+    Suggestions and feedbacks are well aprecietaed, please ping on discord (@blyde_) 
 </template>

@@ -55,8 +55,10 @@ const chartOptions = {
                 title: () => null,
                 label: context => {
                     const splitName = context.label
-                    const runCount = context.raw
                     const splitKey = `${splitName}`.toLowerCase()
+
+                    const runCount = context.raw
+                    const lbCount = props.player.data[splitKey].lbCounter
 
                     const avgMs = props.player.data[splitKey].avg
                     const avg = formatMsToMinSec(avgMs)
@@ -67,9 +69,9 @@ const chartOptions = {
                     const fastestLb = props.player.data[splitKey].lbFastest
 
                     return [
-                        `${splitName}: ${runCount}`,
+                        `${splitName}: ${runCount} (#${lbCount})`,
+                        `Fastest: ${fastest} (#${fastestLb})`,
                         `Average: ${avg} (#${avgLb})`,
-                        `Fastest: ${fastest} (#${fastestLb})`
                     ]
                 }
             }

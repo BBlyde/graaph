@@ -9,6 +9,7 @@
       <div v-if="loading">Loading..</div>
       <div v-else-if="player">
         <BarChart :player="player" />
+        <LineChart :player="player" />
         <PlayerDetails :player="player" />
       </div>
       <div v-else>
@@ -24,6 +25,8 @@ import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
 import { getAllDataByDay, trimAllDataByPlayerId } from '@/services/playerService.js'
 import BarChart from '@/components/BarChart.vue'
+import LineChart from '@/components/LineChart.vue'
+import { Line } from 'vue-chartjs'
 
 const props = defineProps({
   id: String
@@ -37,12 +40,11 @@ const day = ref(1)
 const selectedDays = ref(1)
 
 const fetchPlayer = async (id, day) => {
-
+  player.value = null
   loading.value = true
   try {
     const datas = await getAllDataByDay(day)
     const playerData = await trimAllDataByPlayerId(datas, id)
-    console.log(playerData.data.bastion)
     if (playerData.data.bastion != undefined) {
       player.value = playerData
     }
