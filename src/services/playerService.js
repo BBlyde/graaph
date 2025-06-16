@@ -1,13 +1,43 @@
-export async function getAllDataByDay(day) {
-  /* Calling the Paceman API */
-  const res = await fetch(`/api/getAllData/?days=${day}`)
+////// GENERAL FUNCTIONS
+
+/* Calling the Paceman API */
+export async function fetchDataPacemanApi() {
+  const res = await fetch(`/api/getAllData/?days=9999`)
   if (!res.ok) throw new Error('Api error')
   const json = await res.json()
-  const apiResponse = json.data
+  return json.data
+}
 
+/* Trimming the data to only get the runs played X days ago */
+export async function sanitizeData(data, day) {
+  const now = new Date()
+  const xDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000 * day)
+
+  const res = []
+  data.forEach(runObject => {
+    // Only adding if (nether > 2m or player got elytra) and we verify if the run was played within x days
+    if ((runObject.nether > 120000 || runObject.elytra) && runObject.insertTime >= xDayAgo.toISOString()) {
+      res.push(runObject)
+    }
+  });
+
+  return res
+}
+
+/* Get the leaderboard datas from totorewa's api */
+export async function getDataLeaderboardByPlayer(nickname) {
+  const response = await fetch(`/secure-api/api/leaderboard/search?cat=aa&board=rsg&name=${nickname}`)
+  const data = await response.json()
+  return data.results[0].run.place
+}
+
+////// FUNCTIONS TO MAKE THE GRAPHS
+
+/* Build the data for the said player as long as all the leaderboards for avgs, fastest and numbers */
+export function getPlayerDataByDay(data, day) {
   /* Building the player's data array  */
   let playersData = []
-  apiResponse.forEach(run => {
+  data.forEach(run => {
     const nickname = run.nickname.toLowerCase()
     // If it's a new player we create the cell, if not we insert into the corresponding username
     if (playersData[nickname]) {
@@ -138,7 +168,8 @@ export async function getAllDataByDay(day) {
   return [playersSplit, rankedAvg, rankedFastest, rankedCounter]
 }
 
-export async function trimAllDataByPlayerId(datas, id) {
+/* Trimming the advanced datas */
+export function trimAllDataByPlayerId(datas, id) {
   /* Defining player's properties */
   const nickname = id
 
@@ -208,8 +239,155 @@ export async function trimAllDataByPlayerId(datas, id) {
   }
 }
 
-export async function getDataLeaderboardByPlayer(nickname) {
-  const response = await fetch(`/secure-api/api/leaderboard/search?cat=aa&board=rsg&name=${nickname}`)
-  const data = await response.json()
-  return data.results[0].run.place
+/* Build the average data for the said player with all time periods */
+export async function getPlayerDataForAllPeriod(data, nickname) {
+  const playerData1D = await getAllDataByPlayerAndDay(data, nickname, 1)
+  const playerData7D = await getAllDataByPlayerAndDay(data, nickname, 7)
+  const playerData30D = await getAllDataByPlayerAndDay(data, nickname, 30)
+  const playerDataAT = await getAllDataByPlayerAndDay(data, nickname, 9999)
+
+  const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+  const res = {}
+
+  splits.forEach(split => {
+    res[split] = {}
+    // Searching for average one day
+    for (const [_, data1D] of Object.entries(playerData1D[0])) {
+      if (data1D[split]) {
+        res[split].avg1d = data1D[split].avg
+        // Stops after finding the right value
+        break
+      }
+    }
+
+    // Searching for average 7 days
+    for (const [_, data7D] of Object.entries(playerData7D[0])) {
+      if (data7D[split]) {
+        res[split].avg7d = data7D[split].avg
+        // Stops after finding the right value
+        break
+      }
+    }
+
+    // Searching for average 30 days
+    for (const [_, data30D] of Object.entries(playerData30D[0])) {
+      if (data30D[split]) {
+        res[split].avg30d = data30D[split].avg
+        // Stops after finding the right value
+        break
+      }
+    }
+
+    // Searching for average all time
+    for (const [_, dataAT] of Object.entries(playerDataAT[0])) {
+      if (dataAT[split]) {
+        res[split].avgAT = dataAT[split].avg
+        // Stops after finding the right value
+        break
+      }
+    }
+  })
+  return res
+}
+
+/* Build each average data array for one specifid time period */
+export async function getAllDataByPlayerAndDay(data, player, day) {
+  const trimData = await sanitizeData(data, day)
+
+  /* Building the player's data array  */
+  let playersData = []
+  playersData[player] = []
+  trimData.forEach(run => {
+    const nickname = run.nickname.toLowerCase()
+    // If it's a new player we create the cell, if not we insert into the corresponding username
+    if (nickname == player) {
+      playersData[nickname].push(run)
+    }
+  })
+
+  /* Building the player's split array */
+  const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+
+  let playersSplit = {}
+  for (const player in playersData) {
+    // Initializing each player into the final array
+    playersSplit[player] = []
+
+    // Initializing each split for this player
+    splits.forEach(split => {
+      playersSplit[player][split] = { run: [] }
+    })
+
+    const runs = playersData[player]
+    // Pathing into each run of each player
+    runs.forEach(run => {
+      // Pathing all splits
+      splits.forEach(split => {
+        // Only adding the split if it was played
+        if (run[split]) {
+          playersSplit[player][split]["run"].push(run[split])
+        }
+      })
+    })
+
+    // Pathing threw each split to get additional datas like number of each split played and fastest and avg time of the said split
+    splits.forEach(split => {
+      const values = playersSplit[player][split].run
+      if (values.length > 0) {
+        const fastest = Math.min(...values)
+        const sum = values.reduce((a, b) => a + b, 0)
+        const avg = sum / values.length
+
+        playersSplit[player][split].fastest = fastest
+        playersSplit[player][split].avg = avg
+        playersSplit[player][split].counter = values.length
+      }
+    })
+  }
+  return [playersSplit]
+}
+
+/* Build the unique time of each split for all periods */
+export function uniqueSplitTimeAllPeriods(playerDataAllPeriod) {
+  const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+  const splitsRename = ['overworld', 'nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra']
+  const result = {}
+
+  // We iterate threw each split starting with last one
+  for (let i = splits.length - 1; i >= 0; i--) {
+    const current = splits[i]
+    const currentData = playerDataAllPeriod[current]
+    const newName = splitsRename[i]
+    result[newName] = {}
+
+    // Not touching to the first split (nether)
+    if (i === 0) {
+      result[newName] = { ...currentData }
+    } else {
+      const previous = playerDataAllPeriod[splits[i - 1]]
+      // Substracting each split with the sum of all previous splits
+      for (const key in currentData) {
+        result[newName][key] = currentData[key] - previous[key]
+      }
+    }
+  }
+  return result
+}
+
+/* Build the delta from fastest avg array for all periods */
+export function setEachAvgTimeToLowestBySplit(playerDataAllPeriod) {
+  const res = {}
+  // Iterate threw all averages
+  for (const [splitKey, splitValue] of Object.entries(playerDataAllPeriod)) {
+    // Getting the minimum average for each split
+    const min = Math.min(...Object.values(splitValue));
+
+    // Substracting the value for each time period to the min to get delta value
+    const result = Object.fromEntries(
+      Object.entries(splitValue).map(([key, value]) => [key, value - min])
+    );
+
+    res[splitKey] = result
+  }
+  return res
 }

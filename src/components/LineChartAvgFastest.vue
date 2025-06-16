@@ -10,13 +10,12 @@ import 'chartjs-adapter-date-fns'
 ChartJS.register(Title, Tooltip, Legend, LineElement, CategoryScale, TimeScale, LinearScale, PointElement)
 
 const props = defineProps({
-    player: {
+    advancedData: {
         type: Object,
         required: true
     }
 })
 
-// Fonction pour formatter le temps
 const formatTime = ms => {
     const totalSeconds = Math.floor(ms / 1000)
     const minutes = Math.floor(totalSeconds / 60)
@@ -24,9 +23,9 @@ const formatTime = ms => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-const splitData = props.player.data
+const splitData = props.advancedData.data
 const splits = ['Nether', 'Bastion', 'Fortress', 'Stronghold', 'End', 'Elytra', 'Credits']
-const dataPoints = [
+const dataAvg = [
     { x: 'Nether', y: splitData.nether.avg },
     { x: 'Bastion', y: splitData.bastion.avg },
     { x: 'Fortress', y: splitData.fortress.avg },
@@ -35,7 +34,7 @@ const dataPoints = [
     { x: 'Elytra', y: splitData.elytra.avg },
     { x: 'Credits', y: splitData.credits.avg },
 ]
-const dataPointss = [
+const dataFastest = [
     { x: 'Nether', y: splitData.nether.fastest },
     { x: 'Bastion', y: splitData.bastion.fastest },
     { x: 'Fortress', y: splitData.fortress.fastest },
@@ -49,41 +48,25 @@ const chartData = {
     datasets: [
         {
             label: 'Average',
-            data: dataPoints,
+            data: dataAvg,
             borderColor: '#002174',
             backgroundColor: '#002174',
-            tension: 0.1,
+            tension: 0,
             pointRadius: 3,
             borderWidth: 1.5,
             fill: false,
-            pointBackgroundColor: [
-                '#512020',
-                '#2d2b36',
-                '#37181d',
-                '#686b68',
-                '#b0b682',
-                '#a170a0',
-                '#366a5e'
-            ]
+            pointBackgroundColor: ['#512020', '#2d2b36', '#37181d', '#686b68', '#b0b682', '#a170a0', '#366a5e']
         },
         {
             label: 'Fastest',
-            data: dataPointss,
+            data: dataFastest,
             borderColor: '#69009e',
             backgroundColor: '#69009e',
             tension: 0,
             pointRadius: 3,
             borderWidth: 1.5,
             fill: false,
-            pointBackgroundColor: [
-                '#512020',
-                '#2d2b36',
-                '#37181d',
-                '#686b68',
-                '#b0b682',
-                '#a170a0',
-                '#366a5e'
-            ]
+            pointBackgroundColor: ['#512020', '#2d2b36', '#37181d', '#686b68', '#b0b682', '#a170a0', '#366a5e']
         }
     ]
 }
@@ -91,10 +74,10 @@ const chartData = {
 const chartOptions = {
     responsive: true,
     plugins: {
-        legend: { position: 'top' },
+        legend: { position: 'bottom' },
         title: {
             display: true,
-            text: 'Temps par étape'
+            text: 'Average/Fastest Time By Split'
         },
         datalabels: {
             align: 'top',
@@ -103,6 +86,9 @@ const chartOptions = {
             font: { weight: 'bold' },
             color: '#fff'
         },
+        tooltip: {
+            enabled: false
+        }
     },
     scales: {
         x: {
@@ -124,6 +110,5 @@ const chartOptions = {
             }
         },
     },
-
 }
 </script>

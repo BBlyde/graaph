@@ -1,14 +1,14 @@
 <template>
   <div>
-    {{  player.place }}
-    {{  player }}
+    {{ advancedData.place }}
+    <!-- {{ advancedData }} -->
   </div>
 </template>
 
 <script setup>
 
 const props = defineProps({
-  player: Object
+  advancedData: Object
 })
 
 </script>
