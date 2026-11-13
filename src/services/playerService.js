@@ -32,9 +32,43 @@ export async function getDataLeaderboardByPlayer(nickname) {
   const data = await response.json()
   if (!Array.isArray(data.results)) throw new Error('Invalid leaderboard API response')
   if (data.results.length === 0) return null
-  const place = data.results[0]?.run?.place
+  for (const result of data.results) {
+    const players = result?.run?.players
+    if (!Array.isArray(players) || players.some(player => typeof player !== 'string')) {
+      throw new Error('Invalid leaderboard runner list')
+    }
+  }
+
+  const requestedPlayer = nickname.trim().toLowerCase()
+  const matchingResult = data.results.find(result =>
+    result.run.players.some(player => player.trim().toLowerCase() === requestedPlayer)
+  )
+  if (!matchingResult) return null
+
+  const run = matchingResult.run
+  const place = run?.place
   if (place == null) throw new Error('Invalid leaderboard result')
-  return place
+  if (typeof run.completionTime !== 'string' || !run.completionTime.trim()) {
+    throw new Error('Invalid leaderboard completion time')
+  }
+  return {
+    place,
+    completionTime: run.completionTime
+  }
+}
+
+export async function getMinecraftProfileName(nickname) {
+  const response = await fetch(`/minecraft-api/minecraft/profile/lookup/name/${encodeURIComponent(nickname)}`)
+  if (!response.ok) throw new Error(`Minecraft profile API error (${response.status})`)
+  const profile = await response.json()
+  if (typeof profile.name !== 'string' || !profile.name.trim()) {
+    throw new Error('Invalid Minecraft profile API response')
+  }
+  return profile.name
+}
+
+export function getRunnerHeadUrl(nickname) {
+  return `https://mcsr-game.com/helm/${encodeURIComponent(nickname)}/64.png`
 }
 
 ////// FUNCTIONS TO MAKE THE GRAPHS

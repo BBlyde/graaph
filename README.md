@@ -1,3 +1,6 @@
+changer la couleur du site comme dans mcsrdash
+optimiser playerService
+
 # graaph
 
 This template should help get you started developing with Vue 3 in Vite.

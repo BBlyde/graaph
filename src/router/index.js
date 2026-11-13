@@ -3,6 +3,8 @@ import HomePage from '@/views/HomePage.vue'
 import StatsPage from '@/views/StatsPage.vue'
 import PlayerHome from '@/views/PlayerHome.vue'
 import PlayerStats from '@/views/PlayerStats.vue'
+import VersusPage from '@/views/VersusPage.vue'
+import LeaderBoardPage from '@/views/LeaderBoardPage.vue'
 
 const routes = [
   {
@@ -25,6 +27,16 @@ const routes = [
     name: 'PlayerStats',
     component: PlayerStats,
     props: true
+  },
+  {
+    path: '/versus',
+    name: 'Versus',
+    component: VersusPage
+  },
+  {
+    path: '/leaderboard',
+    name: 'Leaderboard',
+    component: LeaderBoardPage
   }
 ]
 

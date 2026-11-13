@@ -31,12 +31,19 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api/, '/stats/aa/api')
       },
+      '/minecraft-api': {
+        target: 'https://api.minecraftservices.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/minecraft-api/, '')
+      },
       '/secure-api': {
         target: 'https://mcsrapi.totorewa.com',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/secure-api/, ''),
-        headers: {
-          Authorization: `Basic ${basicAuth}`
+        configure(proxy, options) {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            proxyReq.setHeader('Authorization', `Basic ${basicAuth}`)
+          })
         }
       }
     }
