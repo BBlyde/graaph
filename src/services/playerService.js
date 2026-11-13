@@ -3,8 +3,9 @@
 /* Calling the Paceman API */
 export async function fetchDataPacemanApi() {
   const res = await fetch(`/api/getAllData/?days=9999`)
-  if (!res.ok) throw new Error('Api error')
+  if (!res.ok) throw new Error(`Paceman API error (${res.status})`)
   const json = await res.json()
+  if (!Array.isArray(json.data)) throw new Error('Invalid Paceman API response')
   return json.data
 }
 
@@ -26,9 +27,14 @@ export async function sanitizeData(data, day) {
 
 /* Get the leaderboard datas from totorewa's api */
 export async function getDataLeaderboardByPlayer(nickname) {
-  const response = await fetch(`/secure-api/api/leaderboard/search?cat=aa&board=rsg&name=${nickname}`)
+  const response = await fetch(`/secure-api/api/leaderboard/search?cat=aa&board=rsg&name=${encodeURIComponent(nickname)}`)
+  if (!response.ok) throw new Error(`Leaderboard API error (${response.status})`)
   const data = await response.json()
-  return data.results[0].run.place
+  if (!Array.isArray(data.results)) throw new Error('Invalid leaderboard API response')
+  if (data.results.length === 0) return null
+  const place = data.results[0]?.run?.place
+  if (place == null) throw new Error('Invalid leaderboard result')
+  return place
 }
 
 ////// FUNCTIONS TO MAKE THE GRAPHS
@@ -172,6 +178,7 @@ export function getPlayerDataByDay(data, day) {
 export function trimAllDataByPlayerId(datas, id) {
   /* Defining player's properties */
   const nickname = id
+  id = id.trim().toLowerCase()
 
   const dataPlayer = []
   // Pathing the raw datas
@@ -180,7 +187,7 @@ export function trimAllDataByPlayerId(datas, id) {
     if (player == id) {
       // Accessing each split's data
       for (const [split, splitData] of Object.entries(playerData)) {
-        dataPlayer[split] = []  // Defining the final object
+        dataPlayer[split] = splitData
 
         // Pathing the average array to add the leaderboard position into the final object
         for (const [avgSplit, avgData] of Object.entries(datas[1])) {
@@ -293,6 +300,7 @@ export async function getPlayerDataForAllPeriod(data, nickname) {
 /* Build each average data array for one specifid time period */
 export async function getAllDataByPlayerAndDay(data, player, day) {
   const trimData = await sanitizeData(data, day)
+  player = player.trim().toLowerCase()
 
   /* Building the player's data array  */
   let playersData = []
@@ -367,7 +375,9 @@ export function uniqueSplitTimeAllPeriods(playerDataAllPeriod) {
       const previous = playerDataAllPeriod[splits[i - 1]]
       // Substracting each split with the sum of all previous splits
       for (const key in currentData) {
-        result[newName][key] = currentData[key] - previous[key]
+        if (Number.isFinite(currentData[key]) && Number.isFinite(previous[key])) {
+          result[newName][key] = currentData[key] - previous[key]
+        }
       }
     }
   }
@@ -380,11 +390,12 @@ export function setEachAvgTimeToLowestBySplit(playerDataAllPeriod) {
   // Iterate threw all averages
   for (const [splitKey, splitValue] of Object.entries(playerDataAllPeriod)) {
     // Getting the minimum average for each split
-    const min = Math.min(...Object.values(splitValue));
+    const values = Object.entries(splitValue).filter(([, value]) => Number.isFinite(value))
+    const min = Math.min(...values.map(([, value]) => value));
 
     // Substracting the value for each time period to the min to get delta value
     const result = Object.fromEntries(
-      Object.entries(splitValue).map(([key, value]) => [key, value - min])
+      values.map(([key, value]) => [key, value - min])
     );
 
     res[splitKey] = result

@@ -6,9 +6,9 @@
             </div>
 
             <nav class="flex-1 text-center space-x-6">
-                <router-link to="/" class="hover:underline">Home</router-link>
-                <router-link to="/stats" class="hover:underline">Stats</router-link>
-                <router-link to="/player" class="hover:underline">Player</router-link>
+                <router-link to="/" class="hover:underline">HOME</router-link>
+                <router-link to="/stats" class="hover:underline">STATS</router-link>
+                <router-link to="/player" class="hover:underline">PLAYER</router-link>
             </nav>
 
             <div class="flex-1 text-right">

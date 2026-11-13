@@ -7,7 +7,9 @@
     </select>
     <div class="w-2xl">
       <div v-if="loading">Loading..</div>
+      <div v-else-if="error" role="alert">{{ error }}</div>
       <div v-else-if="advancedData">
+        <div v-if="leaderboardError" role="alert">{{ leaderboardError }}</div>
         <BarChartSplitStats :advancedData="advancedData" />
         <BarChartAvgSplit :splitData="splitData" />
         <LineChartAvgFastest :advancedData="advancedData" />
@@ -30,23 +32,24 @@ import BarChartSplitStats from '@/components/BarChartSplitStats.vue'
 import BarChartAvgSplit from '@/components/BarChartAvgSplit.vue'
 import LineChartAvgFastest from '@/components/LineChartAvgFastest.vue'
 import LineChartComplex from '@/components/LineChartComplex.vue'
-import { Line } from 'vue-chartjs'
-
-const props = defineProps({
-  id: String
-})
-
 const route = useRoute()
 const advancedData = ref(null)
 const splitData = ref(null)
 const deltaData = ref(null)
 const loading = ref(true)
+const error = ref('')
+const leaderboardError = ref('')
 const day = ref(1)
 const selectedDays = ref(1)
+let latestRequest = 0
 
 const fetchPlayer = async (id, day) => {
+  const request = ++latestRequest
   advancedData.value = null
   splitData.value = null
+  deltaData.value = null
+  error.value = ''
+  leaderboardError.value = ''
   loading.value = true
 
   try {
@@ -66,21 +69,27 @@ const fetchPlayer = async (id, day) => {
     // Build the delta from fastest avg array for all periods
     const deltas = setEachAvgTimeToLowestBySplit(playerDataAllPeriod) // Complex LineChart
 
-    // Get the leaderboard datas from totorewa's api
-    const place = await getDataLeaderboardByPlayer(id)
-    playerDataTrimmed["place"] = place
-
     // Making sure at least one run was played
-    if (playerDataTrimmed?.data?.bastion !== undefined) {
+    if (Object.values(playerDataTrimmed.data).some(split => split?.counter > 0) && request === latestRequest) {
       // Setting each stored datas into the props
       advancedData.value = playerDataTrimmed // Advanced BarChart & Avg/Fastest LineChart
       splitData.value = eachSplitTimeAllPeriod // Avg Split Time BarChart
       deltaData.value = deltas  // Complex LineChart
+      loading.value = false
+
+      try {
+        const place = await getDataLeaderboardByPlayer(id)
+        if (request === latestRequest) advancedData.value.place = place
+      } catch (e) {
+        console.error('Unable to load leaderboard:', e)
+        if (request === latestRequest) leaderboardError.value = 'Leaderboard unavailable; player statistics are still shown.'
+      }
     }
   } catch (e) {
-    player.value = null
+    console.error('Unable to load player statistics:', e)
+    if (request === latestRequest) error.value = 'Unable to load player statistics. Please try again later.'
   } finally {
-    loading.value = false
+    if (request === latestRequest) loading.value = false
   }
 }
 

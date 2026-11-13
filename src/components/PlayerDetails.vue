@@ -1,7 +1,7 @@
 <template>
   <div>
     {{ advancedData.place }}
-    <!-- {{ advancedData }} -->
+    {{ advancedData }}
   </div>
 </template>
 

@@ -17,6 +17,7 @@ const props = defineProps({
 })
 
 const formatTime = ms => {
+    if (!Number.isFinite(ms)) return ''
     const totalSeconds = Math.floor(ms / 1000)
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
