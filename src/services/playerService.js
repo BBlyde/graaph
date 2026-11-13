@@ -75,57 +75,45 @@ export function getRunnerHeadUrl(nickname) {
 
 /* Build the data for the said player as long as all the leaderboards for avgs, fastest and numbers */
 export function getPlayerDataByDay(data, day) {
-  /* Building the player's data array  */
-  let playersData = []
-  data.forEach(run => {
-    const nickname = run.nickname.toLowerCase()
-    // If it's a new player we create the cell, if not we insert into the corresponding username
-    if (playersData[nickname]) {
-      playersData[nickname].push(run)
-    } else {
-      playersData[nickname] = [run]
-    }
-  })
-
-  /* Building the player's split array */
   const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
   const now = new Date()
   const xDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000 * day)
+  const cutoff = xDayAgo.toISOString()
 
-  let playersSplit = {}
-  for (const player in playersData) {
-    // Initializing each player into the final array
-    playersSplit[player] = []
-
-    // Initializing each split for this player
-    splits.forEach(split => {
-      playersSplit[player][split] = { run: [] }
-    })
-
-
-    const runs = playersData[player]
-    // Pathing into each run of each player
-    runs.forEach(run => {
-      // Pathing all splits
+  const playersSplit = {}
+  const playersStats = {}
+  data.forEach(run => {
+    const player = run.nickname.toLowerCase()
+    if (!Object.prototype.hasOwnProperty.call(playersSplit, player)) {
+      playersSplit[player] = []
+      playersStats[player] = {}
       splits.forEach(split => {
-        // Only adding the split if it was played and if (nether > 2m or player got elytra) and we verify if the run was played within x days
-        if (run[split] && (run.nether > 120000 || run.elytra) && run.insertTime >= xDayAgo.toISOString()) {
-          playersSplit[player][split]["run"].push(run[split])
-        }
+        playersSplit[player][split] = { run: [] }
+        playersStats[player][split] = { sum: 0, fastest: Infinity, counter: 0 }
       })
-    })
+    }
 
-    // Pathing threw each split to get additional datas like number of each split played and fastest and avg time of the said split
+    if (!((run.nether > 120000 || run.elytra) && run.insertTime >= cutoff)) return
+
     splits.forEach(split => {
-      const values = playersSplit[player][split].run
-      if (values.length > 0) {
-        const fastest = Math.min(...values)
-        const sum = values.reduce((a, b) => a + b, 0)
-        const avg = sum / values.length
+      const time = run[split]
+      if (!time) return
 
-        playersSplit[player][split].fastest = fastest
-        playersSplit[player][split].avg = avg
-        playersSplit[player][split].counter = values.length
+      playersSplit[player][split].run.push(time)
+      const stats = playersStats[player][split]
+      stats.sum += time
+      stats.fastest = Math.min(stats.fastest, time)
+      stats.counter++
+    })
+  })
+
+  for (const player in playersSplit) {
+    splits.forEach(split => {
+      const stats = playersStats[player][split]
+      if (stats.counter > 0) {
+        playersSplit[player][split].fastest = stats.fastest
+        playersSplit[player][split].avg = stats.sum / stats.counter
+        playersSplit[player][split].counter = stats.counter
       }
     })
   }
@@ -214,6 +202,19 @@ export function trimAllDataByPlayerId(datas, id) {
   const nickname = id
   id = id.trim().toLowerCase()
 
+  const getPlayerPositions = leaderboard => {
+    const positions = {}
+    for (const [split, entries] of Object.entries(leaderboard)) {
+      for (const entry of entries) {
+        if (entry.name == id && entry.split == split) positions[split] = entry.position
+      }
+    }
+    return positions
+  }
+  const avgPositions = getPlayerPositions(datas[1])
+  const fastestPositions = getPlayerPositions(datas[2])
+  const counterPositions = getPlayerPositions(datas[3])
+
   const dataPlayer = []
   // Pathing the raw datas
   for (const [player, playerData] of Object.entries(datas[0])) {
@@ -223,43 +224,9 @@ export function trimAllDataByPlayerId(datas, id) {
       for (const [split, splitData] of Object.entries(playerData)) {
         dataPlayer[split] = splitData
 
-        // Pathing the average array to add the leaderboard position into the final object
-        for (const [avgSplit, avgData] of Object.entries(datas[1])) {
-          // Pathing each player in the average array
-          for (const [position, avgArray] of Object.entries(avgData)) {
-            // Getting the right player and split
-            if (avgArray.name == id && avgArray.split == split) {
-              // Adding the leaderboard position to the datas
-              splitData["lbAvg"] = avgArray.position
-            }
-          }
-        }
-
-        // Pathing the fastest array to add the leaderboard position into the final object
-        for (const [fastestSplit, fastestData] of Object.entries(datas[2])) {
-          // Pathing each player in the fastest array
-          for (const [position, fastestArray] of Object.entries(fastestData)) {
-            // Getting the right player and split
-            if (fastestArray.name == id && fastestArray.split == split) {
-              // Adding the leaderboard position to the datas
-              splitData["lbFastest"] = fastestArray.position
-            }
-          }
-        }
-
-        // Pathing the fastest array to add the leaderboard position into the final object
-        for (const [counterSplit, counterData] of Object.entries(datas[3])) {
-          // Pathing each player in the fastest array
-          for (const [position, counterArray] of Object.entries(counterData)) {
-            // Getting the right player and split
-            if (counterArray.name == id && counterArray.split == split) {
-              // Adding the leaderboard position to the datas
-              splitData["lbCounter"] = counterArray.position
-              // Adding the datas into the final object
-              dataPlayer[split] = splitData
-            }
-          }
-        }
+        if (avgPositions[split] !== undefined) splitData.lbAvg = avgPositions[split]
+        if (fastestPositions[split] !== undefined) splitData.lbFastest = fastestPositions[split]
+        if (counterPositions[split] !== undefined) splitData.lbCounter = counterPositions[split]
       }
     }
   }
@@ -282,52 +249,51 @@ export function trimAllDataByPlayerId(datas, id) {
 
 /* Build the average data for the said player with all time periods */
 export async function getPlayerDataForAllPeriod(data, nickname) {
-  const playerData1D = await getAllDataByPlayerAndDay(data, nickname, 1)
-  const playerData7D = await getAllDataByPlayerAndDay(data, nickname, 7)
-  const playerData30D = await getAllDataByPlayerAndDay(data, nickname, 30)
-  const playerDataAT = await getAllDataByPlayerAndDay(data, nickname, 9999)
-
   const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
-  const res = {}
-
-  splits.forEach(split => {
-    res[split] = {}
-    // Searching for average one day
-    for (const [_, data1D] of Object.entries(playerData1D[0])) {
-      if (data1D[split]) {
-        res[split].avg1d = data1D[split].avg
-        // Stops after finding the right value
-        break
-      }
-    }
-
-    // Searching for average 7 days
-    for (const [_, data7D] of Object.entries(playerData7D[0])) {
-      if (data7D[split]) {
-        res[split].avg7d = data7D[split].avg
-        // Stops after finding the right value
-        break
-      }
-    }
-
-    // Searching for average 30 days
-    for (const [_, data30D] of Object.entries(playerData30D[0])) {
-      if (data30D[split]) {
-        res[split].avg30d = data30D[split].avg
-        // Stops after finding the right value
-        break
-      }
-    }
-
-    // Searching for average all time
-    for (const [_, dataAT] of Object.entries(playerDataAT[0])) {
-      if (dataAT[split]) {
-        res[split].avgAT = dataAT[split].avg
-        // Stops after finding the right value
-        break
-      }
-    }
+  const periods = [
+    { key: 'avg1d', days: 1 },
+    { key: 'avg7d', days: 7 },
+    { key: 'avg30d', days: 30 },
+    { key: 'avgAT', days: 9999 }
+  ]
+  const player = nickname.trim().toLowerCase()
+  const cutoffs = periods.map(({ days }) => {
+    const now = new Date()
+    return new Date(now.getTime() - 24 * 60 * 60 * 1000 * days).toISOString()
   })
+  const periodStats = periods.map(() =>
+    Object.fromEntries(splits.map(split => [split, { sum: 0, counter: 0 }]))
+  )
+
+  for (const run of data) {
+    if (!(run.nether > 120000 || run.elytra)) continue
+    const includedPeriods = cutoffs.map(cutoff => run.insertTime >= cutoff)
+    if (!includedPeriods.some(Boolean)) continue
+
+    const runNickname = run.nickname.toLowerCase()
+    if (runNickname !== player) continue
+
+    periods.forEach((period, periodIndex) => {
+      if (!includedPeriods[periodIndex]) return
+
+      splits.forEach(split => {
+        const time = run[split]
+        if (time) {
+          const stats = periodStats[periodIndex][split]
+          stats.sum += time
+          stats.counter++
+        }
+      })
+    })
+  }
+
+  const res = Object.fromEntries(splits.map(split => [
+    split,
+    Object.fromEntries(periods.map(({ key }, periodIndex) => {
+      const { sum, counter } = periodStats[periodIndex][split]
+      return [key, counter > 0 ? sum / counter : undefined]
+    }))
+  ]))
   return res
 }
 
