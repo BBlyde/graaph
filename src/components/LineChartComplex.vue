@@ -119,10 +119,9 @@ const chartData = {
 const chartOptions = {
     responsive: true,
     plugins: {
-        legend: { position: 'bottom' },
+        legend: { position: 'bottom', labels: { color: '#a1a1aa' } },
         title: {
-            display: true,
-            text: 'COMPLEX Delta from Fastest Split Time By Period of Time'
+            display: false
         },
         datalabels: {
             align: 'top',
@@ -139,6 +138,8 @@ const chartOptions = {
         x: {
             type: 'category',
             labels: splits,
+            ticks: { color: '#a1a1aa' },
+            grid: { color: 'rgba(255, 255, 255, 0.06)' }
         },
         y: {
             type: 'time',

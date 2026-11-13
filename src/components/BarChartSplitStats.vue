@@ -41,8 +41,7 @@ const chartOptions = {
             display: false
         },
         title: {
-            display: true,
-            text: 'Advanced Statistics By Split'
+            display: false
         },
         datalabels: {
             color: '#fff',
@@ -83,6 +82,10 @@ const chartOptions = {
         }
     },
     scales: {
+        x: {
+            ticks: { color: '#a1a1aa' },
+            grid: { color: 'rgba(255, 255, 255, 0.06)' }
+        },
         y: {
             display: false
         }

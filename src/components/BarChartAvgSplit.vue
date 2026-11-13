@@ -77,10 +77,10 @@ const chartOptions = {
     plugins: {
         legend: {
             position: 'bottom',
+            labels: { color: '#a1a1aa' }
         },
         title: {
-            display: true,
-            text: 'Average Split Time By Period of Time',
+            display: false
         },
         datalabels: {
             color: '#fff',
@@ -112,6 +112,8 @@ const chartOptions = {
         },
         y: {
             stacked: true,
+            ticks: { color: '#a1a1aa' },
+            grid: { color: 'rgba(255, 255, 255, 0.06)' }
         },
     },
 }
