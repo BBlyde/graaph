@@ -1,5 +1,5 @@
 <template>
-    <header class="border-b border-white/10 bg-[#101011] text-white">
+    <header class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#101011] text-white">
         <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-8">
             <router-link to="/" class="logo-link shrink-0" aria-label="Graaph - Accueil">
                 <img src="@/assets/logo.png" alt="Graaph" class="h-8 w-auto sm:h-9" />

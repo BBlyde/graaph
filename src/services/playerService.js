@@ -9,6 +9,63 @@ export async function fetchDataPacemanApi() {
   return json.data
 }
 
+export async function fetchPlayerRunHistory(nickname) {
+  const playerParams = new URLSearchParams({ names: nickname })
+  const playerResponse = await fetch(`/paceman-stats-api/getPlayerInfo/?${playerParams}`)
+  if (!playerResponse.ok) throw new Error(`Paceman player API error (${playerResponse.status})`)
+  const players = await playerResponse.json()
+  if (!players || typeof players !== 'object' || Array.isArray(players)) {
+    throw new Error('Invalid Paceman player API response')
+  }
+
+  const requestedNickname = nickname.trim().toLowerCase()
+  const player = Object.values(players).find(entry =>
+    typeof entry?.nick === 'string' && entry.nick.trim().toLowerCase() === requestedNickname
+  )
+  if (!player) return []
+  if (typeof player.id !== 'string' || !player.id) {
+    throw new Error('Invalid Paceman player identifier')
+  }
+
+  const rows = []
+  const seenCursors = new Set()
+  let beforeId
+  let hasMore = true
+
+  while (hasMore) {
+    const params = new URLSearchParams({ uuid: player.id, limit: '100' })
+    if (beforeId !== undefined) params.set('beforeId', String(beforeId))
+
+    const response = await fetch(`/paceman-stats-api/getAAPlayerRuns/?${params}`)
+    if (!response.ok) throw new Error(`Paceman run history API error (${response.status})`)
+    const page = await response.json()
+    if (!Array.isArray(page.rows) || typeof page.hasMore !== 'boolean') {
+      throw new Error('Invalid Paceman run history API response')
+    }
+
+    rows.push(...page.rows)
+    hasMore = page.hasMore
+    if (hasMore) {
+      if (!Number.isInteger(page.nextCursor) || seenCursors.has(page.nextCursor)) {
+        throw new Error('Invalid Paceman run history pagination cursor')
+      }
+      beforeId = page.nextCursor
+      seenCursors.add(beforeId)
+    }
+  }
+
+  return rows.map(run => {
+    if (!Number.isFinite(run.lastUpdated)) {
+      throw new Error('Invalid Paceman run timestamp')
+    }
+    return {
+      ...run,
+      nickname,
+      insertTime: new Date(run.lastUpdated).toISOString()
+    }
+  })
+}
+
 /* Trimming the data to only get the runs played X days ago */
 export async function sanitizeData(data, day) {
   const now = new Date()
@@ -26,21 +83,53 @@ export async function sanitizeData(data, day) {
 }
 
 /* Get the leaderboard datas from totorewa's api */
-export async function getDataLeaderboardByPlayer(nickname) {
+async function fetchLeaderboardSearchResults(nickname) {
   const response = await fetch(`/secure-api/api/leaderboard/search?cat=aa&board=rsg&name=${encodeURIComponent(nickname)}`)
   if (!response.ok) throw new Error(`Leaderboard API error (${response.status})`)
   const data = await response.json()
   if (!Array.isArray(data.results)) throw new Error('Invalid leaderboard API response')
-  if (data.results.length === 0) return null
   for (const result of data.results) {
     const players = result?.run?.players
     if (!Array.isArray(players) || players.some(player => typeof player !== 'string')) {
       throw new Error('Invalid leaderboard runner list')
     }
   }
+  return data.results
+}
+
+export async function getAllLeaderboardData(board = 'rsg') {
+  if (!['rsg', 'thunderless'].includes(board)) {
+    throw new Error('Invalid leaderboard board')
+  }
+  const response = await fetch(`/secure-api/api/leaderboard/all?cat=aa&board=${encodeURIComponent(board)}`)
+  if (!response.ok) throw new Error(`Leaderboard API error (${response.status})`)
+  const data = await response.json()
+  if (!Array.isArray(data.runs)) throw new Error('Invalid leaderboard API response')
+
+  return data.runs.map(run => {
+    if (!Number.isFinite(run?.place) || run.place < 1) {
+      throw new Error('Invalid leaderboard place')
+    }
+    if (!Array.isArray(run.players) || run.players.some(player => typeof player !== 'string' || !player.trim())) {
+      throw new Error('Invalid leaderboard runner list')
+    }
+    if (typeof run.completionTime !== 'string' || !run.completionTime.trim()) {
+      throw new Error('Invalid leaderboard completion time')
+    }
+    return {
+      place: run.place,
+      players: run.players,
+      completionTime: run.completionTime
+    }
+  })
+}
+
+export async function getDataLeaderboardByPlayer(nickname) {
+  const results = await fetchLeaderboardSearchResults(nickname)
+  if (results.length === 0) return null
 
   const requestedPlayer = nickname.trim().toLowerCase()
-  const matchingResult = data.results.find(result =>
+  const matchingResult = results.find(result =>
     result.run.players.some(player => player.trim().toLowerCase() === requestedPlayer)
   )
   if (!matchingResult) return null
@@ -93,7 +182,7 @@ export function getPlayerDataByDay(data, day) {
       })
     }
 
-    if (!((run.nether > 120000 || run.elytra) && run.insertTime >= cutoff)) return
+    if (!((run.nether > 120000 || run.elytra > 120000) && run.insertTime >= cutoff)) return
 
     splits.forEach(split => {
       const time = run[split]
@@ -297,6 +386,107 @@ export async function getPlayerDataForAllPeriod(data, nickname) {
   return res
 }
 
+export function getPlayerSplitStatsForAllPeriods(data, nickname) {
+  const checkpoints = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+  const segments = ['overworld', 'nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra']
+  const periods = [
+    { key: 'avg1d', days: 1 },
+    { key: 'avg7d', days: 7 },
+    { key: 'avg30d', days: 30 },
+    { key: 'avgAT', days: 9999 }
+  ]
+  const requestedPlayer = nickname.trim().toLowerCase()
+  const result = Object.fromEntries(segments.map(segment => [segment, {}]))
+
+  periods.forEach(({ key, days }) => {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000 * days).toISOString()
+    const playerStats = {}
+
+    for (const run of data) {
+      if (!(run.nether > 120000 || run.elytra) || !(run.insertTime >= cutoff)) continue
+
+      const player = run.nickname.toLowerCase()
+      if (!playerStats[player]) {
+        playerStats[player] = {
+          checkpoints: Object.fromEntries(checkpoints.map(checkpoint => [checkpoint, { sum: 0, counter: 0 }])),
+          segments: Object.fromEntries(segments.map(segment => [segment, { counter: 0, fastest: Infinity }]))
+        }
+      }
+
+      const stats = playerStats[player]
+      checkpoints.forEach(checkpoint => {
+        const time = run[checkpoint]
+        if (!time) return
+
+        stats.checkpoints[checkpoint].sum += time
+        stats.checkpoints[checkpoint].counter++
+      })
+
+      segments.forEach((segment, index) => {
+        const end = run[checkpoints[index]]
+        const start = index === 0 ? 0 : run[checkpoints[index - 1]]
+        if (!Number.isFinite(end) || !Number.isFinite(start) || end <= start) return
+
+        const segmentStats = stats.segments[segment]
+        const time = end - start
+        segmentStats.counter++
+        segmentStats.fastest = Math.min(segmentStats.fastest, time)
+      })
+    }
+
+    for (const stats of Object.values(playerStats)) {
+      segments.forEach((segment, index) => {
+        const currentCheckpoint = stats.checkpoints[checkpoints[index]]
+        const currentAverage = currentCheckpoint.counter > 0
+          ? currentCheckpoint.sum / currentCheckpoint.counter
+          : undefined
+        const previousCheckpoint = index > 0 ? stats.checkpoints[checkpoints[index - 1]] : null
+        const previousAverage = previousCheckpoint?.counter > 0
+          ? previousCheckpoint.sum / previousCheckpoint.counter
+          : undefined
+
+        if (Number.isFinite(currentAverage) && (index === 0 || Number.isFinite(previousAverage))) {
+          stats.segments[segment].avg = currentAverage - (previousAverage ?? 0)
+        }
+      })
+    }
+
+    segments.forEach(segment => {
+      const rankings = [
+        { field: 'avg', rank: 'lbAvg', descending: false },
+        { field: 'fastest', rank: 'lbFastest', descending: false },
+        { field: 'counter', rank: 'lbCounter', descending: true }
+      ]
+
+      rankings.forEach(({ field, rank, descending }) => {
+        Object.entries(playerStats)
+          .filter(([, stats]) => {
+            const value = stats.segments[segment][field]
+            return Number.isFinite(value) && value > 0
+          })
+          .sort(([, a], [, b]) => descending
+            ? b.segments[segment][field] - a.segments[segment][field]
+            : a.segments[segment][field] - b.segments[segment][field])
+          .forEach(([player], index) => {
+            playerStats[player].segments[segment][rank] = index + 1
+          })
+      })
+
+      const playerSegmentStats = playerStats[requestedPlayer]?.segments[segment]
+      if (playerSegmentStats) {
+        result[segment][key] = {
+          ...playerSegmentStats,
+          fastest: Number.isFinite(playerSegmentStats.fastest) ? playerSegmentStats.fastest : undefined
+        }
+      } else {
+        result[segment][key] = { counter: 0 }
+      }
+    })
+  })
+
+  return result
+}
+
 /* Build each average data array for one specifid time period */
 export async function getAllDataByPlayerAndDay(data, player, day) {
   const trimData = await sanitizeData(data, day)
@@ -382,23 +572,4 @@ export function uniqueSplitTimeAllPeriods(playerDataAllPeriod) {
     }
   }
   return result
-}
-
-/* Build the delta from fastest avg array for all periods */
-export function setEachAvgTimeToLowestBySplit(playerDataAllPeriod) {
-  const res = {}
-  // Iterate threw all averages
-  for (const [splitKey, splitValue] of Object.entries(playerDataAllPeriod)) {
-    // Getting the minimum average for each split
-    const values = Object.entries(splitValue).filter(([, value]) => Number.isFinite(value))
-    const min = Math.min(...values.map(([, value]) => value));
-
-    // Substracting the value for each time period to the min to get delta value
-    const result = Object.fromEntries(
-      values.map(([key, value]) => [key, value - min])
-    );
-
-    res[splitKey] = result
-  }
-  return res
 }

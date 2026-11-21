@@ -6,7 +6,7 @@
             </p>
             <form class="w-full" @submit.prevent="goToPlayer">
                 <label for="player-username" class="sr-only">Minecraft username</label>
-                <div class="flex border border-white/15 bg-[#151517] p-1.5 transition focus-within:border-primary/70">
+                <div class="flex border border-white/15 bg-[#151517] p-1.5 transition focus-within:border-primarry/70">
                     <div class="flex min-w-0 flex-1 items-center gap-3 pl-3 sm:pl-4">
                         <svg aria-hidden="true" class="h-5 w-5 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none">
                             <circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7" />
@@ -22,8 +22,8 @@
                         />
                     </div>
                     <button
-                        class="inline-flex h-12 shrink-0 items-center gap-2 bg-primary px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
-                        :style="{ '--hover-color': 'var(--color-secondary)' }"
+                        class="inline-flex h-12 shrink-0 items-center gap-2 bg-primarry px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+                        :style="{ '--hover-color': 'var(--color-primarry)' }"
                         :disabled="!playerId.trim()"
                         type="submit"
                     >

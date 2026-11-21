@@ -1,10 +1,23 @@
 <template>
-    <div class="h-80 sm:h-96">
+    <div class="relative h-80 sm:h-96">
         <Bar :data="chartData" :options="chartOptions" />
+        <div
+            v-if="tooltip.visible"
+            class="pointer-events-none absolute z-10 border border-white/15 bg-[#101011] px-3 py-2 text-xs text-white shadow-lg"
+            :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }"
+            role="tooltip"
+        >
+            <div v-for="(line, index) in tooltip.lines" :key="index" class="mb-2 last:mb-0">
+                <div>{{ line.label }}: <span class="text-[#27AE60]">{{ line.counter || 'No data' }}</span> runs ({{ formatRank(line.lbCounter) }})</div>
+                <div>Fastest: <span class="text-[#27AE60]">{{ line.fastest || 'No data' }}</span> ({{ formatRank(line.lbFastest) }})</div>
+                <div>Average: <span class="text-[#27AE60]">{{ line.time || 'No data' }}</span> ({{ formatRank(line.lbAvg) }})</div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { Bar } from 'vue-chartjs'
 import {
     Chart as ChartJS,
@@ -40,6 +53,10 @@ const props = defineProps({
     splitData: {
         type: Object,
         required: true
+    },
+    segmentStats: {
+        type: Object,
+        required: true
     }
 })
 
@@ -50,6 +67,43 @@ function formatMsToMinSec(ms) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+function formatRank(rank) {
+    return rank == null ? '—' : `#${rank}`
+}
+
+const tooltip = ref({ visible: false, x: 0, y: 0, title: '', lines: [] })
+const segmentKeys = ['overworld', 'nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra']
+const periodKeys = ['avg1d', 'avg7d', 'avg30d', 'avgAT']
+
+function renderTooltip({ tooltip: chartTooltip }) {
+    const dataPoints = chartTooltip.dataPoints
+    if (!chartTooltip.opacity || !dataPoints?.length) {
+        tooltip.value = { ...tooltip.value, visible: false }
+        return
+    }
+
+    tooltip.value = {
+        visible: true,
+        x: chartTooltip.x,
+        y: chartTooltip.y,
+        lines: dataPoints.map(dataPoint => {
+            const segment = segmentKeys[dataPoint.datasetIndex]
+            const period = periodKeys[dataPoint.dataIndex]
+            const stats = props.segmentStats[segment]?.[period] ?? {}
+
+            return {
+                label: dataPoint.dataset.label,
+                time: formatMsToMinSec(dataPoint.raw),
+                counter: stats.counter,
+                fastest: formatMsToMinSec(stats.fastest),
+                lbCounter: stats.lbCounter,
+                lbFastest: stats.lbFastest,
+                lbAvg: stats.lbAvg
+            }
+        })
+    }
+}
+
 const splitData = props.splitData
 const chartData = {
     labels: ['24 hours', '7 Days', '30 Days', 'All Time'],
@@ -57,7 +111,7 @@ const chartData = {
         {
             label: 'Overworld',
             data: [splitData.overworld.avg1d, splitData.overworld.avg7d, splitData.overworld.avg30d, splitData.overworld.avgAT],
-            backgroundColor: '#145a32',
+            backgroundColor: '#C9922A',
             borderWidth: 0,
         },
         {
@@ -87,7 +141,7 @@ const chartData = {
         {
             label: 'End',
             data: [splitData.end.avg1d, splitData.end.avg7d, splitData.end.avg30d, splitData.end.avgAT],
-            backgroundColor: '#b0b682',
+            backgroundColor: '#A5AB7D',
             borderWidth: 0,
         },
         {
@@ -99,10 +153,37 @@ const chartData = {
     ],
 }
 
+const maxStackedTime = Math.max(
+    0,
+    ...chartData.labels.map((_, index) =>
+        chartData.datasets.reduce((total, dataset) => {
+            const value = dataset.data[index]
+            return total + (Number.isFinite(value) ? value : 0)
+        }, 0)
+    )
+)
+const maxMinutes = maxStackedTime / 60000
+const targetMinuteStep = maxMinutes / 4
+const minuteTickStep = (() => {
+    if (targetMinuteStep <= 1) return 60000
+
+    const magnitude = 10 ** Math.floor(Math.log10(targetMinuteStep))
+    const normalizedStep = targetMinuteStep / magnitude
+    const niceStep = normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10
+    return niceStep * magnitude * 60000
+})()
+
 const chartOptions = {
     indexAxis: 'y',
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+        duration: 1500,
+        easing: 'easeOutQuart',
+        delay: context => context.type === 'data'
+            ? context.dataIndex * 110 + context.datasetIndex * 70
+            : 0
+    },
     font: { family: 'Outfit, sans-serif' },
     plugins: {
         legend: {
@@ -135,10 +216,10 @@ const chartOptions = {
                 family: 'Outfit, sans-serif',
                 size: 12
             },
-            textStrokeColor: 'rgba(16, 16, 17, 0.8)',
-            textStrokeWidth: 2,
         },
         tooltip: {
+            enabled: false,
+            external: renderTooltip,
             position: 'segmentCenter',
             xAlign: 'center',
             yAlign: 'bottom',
@@ -166,6 +247,7 @@ const chartOptions = {
             ticks: {
                 color: '#71717a',
                 maxTicksLimit: 5,
+                stepSize: minuteTickStep,
                 font: { family: 'Outfit, sans-serif', size: 12 },
                 callback: value => formatMsToMinSec(value)
             },

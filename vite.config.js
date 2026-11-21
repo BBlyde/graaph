@@ -31,6 +31,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api/, '/stats/aa/api')
       },
+      '/paceman-stats-api': {
+        target: 'https://paceman.gg',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/paceman-stats-api/, '/stats/api')
+      },
       '/minecraft-api': {
         target: 'https://api.minecraftservices.com',
         changeOrigin: true,
