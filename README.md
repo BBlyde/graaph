@@ -1,5 +1,5 @@
 # todo
-Ajouté la conversion dans les bar chart
+Ajouté la conversion dans les bar charts
 page accueil : box recent completion, Compteur de splis journalier (nether et end exit), meilleur joueur avg &number pour chaque split & chaque period
 Page history wr
 page player : bas history pb
