@@ -1,11 +1,19 @@
 <template>
     <div class="relative mx-auto h-80 w-full max-w-3xl sm:h-96">
         <Radar :data="chartData" :options="chartOptions" />
+        <div
+            v-if="tooltip.visible"
+            class="pointer-events-none absolute z-10 border border-white/15 bg-[#101011] px-3 py-2 text-xs text-white shadow-lg"
+            :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }"
+            role="tooltip"
+        >
+            {{ tooltip.label }}: <span class="text-[#27AE60]">{{ tooltip.time || 'No data' }}</span>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Radar } from 'vue-chartjs'
 import {
     Chart as ChartJS,
@@ -90,6 +98,24 @@ function formatMsToMinSec(ms) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+const tooltip = ref({ visible: false, x: 0, y: 0, label: '', time: '' })
+
+function renderTooltip({ tooltip: chartTooltip }) {
+    const dataPoint = chartTooltip.dataPoints?.[0]
+    if (!chartTooltip.opacity || !dataPoint) {
+        tooltip.value = { ...tooltip.value, visible: false }
+        return
+    }
+
+    tooltip.value = {
+        visible: true,
+        x: chartTooltip.x,
+        y: chartTooltip.y,
+        label: dataPoint.dataset.label,
+        time: formatMsToMinSec(dataPoint.raw)
+    }
+}
+
 const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -109,12 +135,8 @@ const chartOptions = {
             display: false
         },
         tooltip: {
-            callbacks: {
-                label: context => {
-                    const time = formatMsToMinSec(context.raw)
-                    return `${context.dataset.label}: ${time || 'No data'}`
-                }
-            }
+            enabled: false,
+            external: renderTooltip
         }
     },
     scales: {

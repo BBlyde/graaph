@@ -121,6 +121,18 @@
         </article>
 
       </div>
+
+      <article class="min-w-0 border border-white/10 bg-[#151517] p-4 sm:p-5">
+        <div class="mb-4 border-b border-white/10 pb-3">
+          <h2 class="text-sm font-semibold text-zinc-100">All Advancements PB history</h2>
+          <p class="mt-1 text-xs text-zinc-500">Personal bests from the sheet · IGT · PB details on hover</p>
+        </div>
+        <PlayerProgressionChart
+          :records="progressionRecords"
+          :loading="progressionLoading"
+          :error="progressionError"
+        />
+      </article>
     </div>
     <div v-else class="border border-white/10 bg-[#151517] px-5 py-8 text-sm text-zinc-400">
       No data for this player.
@@ -140,11 +152,16 @@ import BarChartAvgSplit from '@/components/BarChartAvgSplit.vue'
 import SplitPeriodHeatmap from '@/components/SplitPeriodHeatmap.vue'
 import RadarChartAvgFastestSplit from '@/components/RadarChartAvgFastestSplit.vue'
 import NetherContributionHeatmap from '@/components/NetherContributionHeatmap.vue'
+import PlayerProgressionChart from '@/components/PlayerProgressionChart.vue'
+import { fetchPlayerProgression } from '@/services/playerService.js'
 const route = useRoute()
 const advancedData = ref(null)
 const splitData = ref(null)
 const segmentStats = ref(null)
 const netherEntries = ref([])
+const progressionRecords = ref([])
+const progressionLoading = ref(true)
+const progressionError = ref(false)
 const hasPeriodData = ref(false)
 const loading = ref(true)
 const error = ref('')
@@ -178,20 +195,34 @@ const fetchPlayer = async (id, day) => {
   splitData.value = null
   segmentStats.value = null
   netherEntries.value = []
+  progressionRecords.value = []
+  progressionLoading.value = true
+  progressionError.value = false
   hasPeriodData.value = false
   error.value = ''
   loading.value = true
 
   try {
-    const [globalData, playerRuns, profileResult] = await Promise.all([
+    const [globalData, playerRuns, profileResult, progressionResult] = await Promise.all([
       fetchDataPacemanApi(),
       fetchPlayerRunHistory(id),
       getMinecraftProfileName(id).then(
         name => ({ name }),
         error => ({ error })
+      ),
+      fetchPlayerProgression(id).then(
+        records => ({ records }),
+        error => ({ error })
       )
     ])
     if (request !== latestRequest) return
+    if ('error' in progressionResult) {
+      console.error('Unable to load player progression:', progressionResult.error)
+      progressionError.value = true
+    } else {
+      progressionRecords.value = progressionResult.records
+    }
+    progressionLoading.value = false
 
     const playerData = playerRuns.length
       ? [
@@ -273,7 +304,10 @@ const fetchPlayer = async (id, day) => {
     console.error('Unable to load player statistics:', e)
     if (request === latestRequest) error.value = 'Unable to load player statistics. Please try again later.'
   } finally {
-    if (request === latestRequest) loading.value = false
+    if (request === latestRequest) {
+      loading.value = false
+      progressionLoading.value = false
+    }
   }
 }
 

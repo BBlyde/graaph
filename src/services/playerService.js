@@ -1,5 +1,103 @@
 ////// GENERAL FUNCTIONS
 
+const progressionSheetUrl = 'https://docs.google.com/spreadsheets/d/107ijqjELTQQ29KW4phUmtvYFTX9-pfHsjb18TKoWACk/gviz/tq?tqx=out:csv&gid=735237004'
+
+function parseCsvRows(csv) {
+  const rows = []
+  let row = []
+  let cell = ''
+  let isQuoted = false
+
+  for (let index = 0; index < csv.length; index++) {
+    const character = csv[index]
+    if (character === '"') {
+      if (isQuoted && csv[index + 1] === '"') {
+        cell += '"'
+        index++
+      } else {
+        isQuoted = !isQuoted
+      }
+    } else if (character === ',' && !isQuoted) {
+      row.push(cell)
+      cell = ''
+    } else if ((character === '\n' || character === '\r') && !isQuoted) {
+      if (character === '\r' && csv[index + 1] === '\n') index++
+      row.push(cell)
+      if (row.some(value => value.trim())) rows.push(row)
+      row = []
+      cell = ''
+    } else {
+      cell += character
+    }
+  }
+
+  if (isQuoted) throw new Error('Invalid progression sheet CSV')
+  if (cell || row.length) {
+    row.push(cell)
+    if (row.some(value => value.trim())) rows.push(row)
+  }
+  return rows
+}
+
+function parseSheetDate(value) {
+  const match = value.replace(/\u00a0/g, ' ').trim().match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/)
+  if (!match) return null
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const month = months.findIndex(name => name.toLowerCase() === match[2].toLowerCase())
+  if (month < 0) return null
+
+  const date = new Date(Date.UTC(Number(match[3]), month, Number(match[1])))
+  return date.getUTCDate() === Number(match[1]) ? date.getTime() : null
+}
+
+function parseSheetDuration(value) {
+  const match = value.trim().match(/^(\d+):([0-5]?\d):([0-5]?\d)$/)
+  if (!match) return null
+  return (Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3])) * 1000
+}
+
+export async function fetchPlayerProgression(nickname) {
+  const response = await fetch(progressionSheetUrl)
+  if (!response.ok) throw new Error(`Progression sheet error (${response.status})`)
+
+  const rows = parseCsvRows(await response.text())
+  const headers = rows.shift()?.map(value => value.trim())
+  if (!headers) throw new Error('Invalid progression sheet response')
+
+  const columns = Object.fromEntries(['Date', 'Runner', 'IGT', 'Link', 'Status'].map(name => [
+    name,
+    headers.indexOf(name)
+  ]))
+  if (Object.values(columns).some(index => index < 0)) {
+    throw new Error('Invalid progression sheet columns')
+  }
+
+  const requestedPlayer = nickname.trim().toLowerCase()
+  let bestTime = Infinity
+  return rows
+    .filter(row => row[columns.Runner]?.trim().toLowerCase() === requestedPlayer)
+    .map(row => {
+      const timestamp = parseSheetDate(row[columns.Date] ?? '')
+      const time = parseSheetDuration(row[columns.IGT] ?? '')
+      if (timestamp === null || time === null) {
+        throw new Error('Invalid run in progression sheet')
+      }
+      return {
+        timestamp,
+        time,
+        link: row[columns.Link]?.trim() ?? '',
+        status: row[columns.Status]?.trim() || 'Unknown'
+      }
+    })
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .filter(record => {
+      if (record.time >= bestTime) return false
+      bestTime = record.time
+      return true
+    })
+}
+
 /* Calling the Paceman API */
 export async function fetchDataPacemanApi() {
   const res = await fetch(`/api/getAllData/?days=9999`)

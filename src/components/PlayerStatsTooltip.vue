@@ -1,7 +1,7 @@
 <template>
     <div
-        class="pointer-events-none absolute z-10 border border-white/15 bg-[#101011] px-3 py-2 text-xs text-white shadow-lg"
-        :style="{ left: `${props.x}px`, top: `${props.y}px` }"
+        class="pointer-events-none absolute z-10 w-max whitespace-nowrap border border-white/15 bg-[#101011] px-3 py-2 text-xs text-white shadow-lg"
+        :style="{ left: `${props.x}px`, top: `${props.y}px`, transform: props.alignRight ? 'translateX(-100%)' : undefined }"
         role="tooltip"
     >
         <div>
@@ -33,6 +33,10 @@ const props = defineProps({
     y: {
         type: Number,
         required: true
+    },
+    alignRight: {
+        type: Boolean,
+        default: false
     }
 })
 

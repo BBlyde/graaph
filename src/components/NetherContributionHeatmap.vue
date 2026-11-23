@@ -44,12 +44,13 @@
     </div>
     <div
       v-if="tooltip"
-      class="pointer-events-none fixed z-[100] whitespace-nowrap rounded border border-white/15 bg-[#09090b] px-2.5 py-1.5 text-xs text-zinc-100 shadow-xl"
+      class="pointer-events-none fixed z-[100] rounded border border-white/15 bg-[#09090b] px-2.5 py-1.5 text-xs text-zinc-100 shadow-xl"
       :style="{ left: `${tooltip.left}px`, top: `${tooltip.top}px` }"
       role="tooltip"
       aria-hidden="true"
     >
-      {{ tooltip.label }}
+      <div><span class="font-semibold text-[#27AE60]">{{ tooltip.count }}</span> nether {{ tooltip.entryLabel }}</div>
+      <div class="mt-0.5 text-zinc-400">{{ tooltip.date }}</div>
     </div>
   </div>
 </template>
@@ -101,6 +102,12 @@ const weeks = computed(() => {
       const inRange = date >= firstDay && date <= today
       const count = inRange ? dailyCounts.value.get(key) || 0 : 0
       const level = count ? Math.min(4, Math.ceil((count / maxCount) * 4)) : 0
+      const formattedDate = new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+      }).format(date)
 
       if (inRange && date.getUTCDate() === 1) {
         month = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(date)
@@ -110,13 +117,11 @@ const weeks = computed(() => {
         date: key,
         color: colors[level],
         label: inRange
-          ? `${count} nether ${count === 1 ? 'entry' : 'entries'} on ${new Intl.DateTimeFormat('en', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-              timeZone: 'UTC'
-            }).format(date)}`
-          : ''
+          ? `${count} nether ${count === 1 ? 'entry' : 'entries'}, ${formattedDate}`
+          : '',
+        count,
+        entryLabel: count === 1 ? 'entry' : 'entries',
+        formattedDate
       })
     }
 
@@ -147,7 +152,9 @@ function showTooltip(event, cell) {
   const bounds = event.currentTarget.getBoundingClientRect()
   const tooltipWidth = 240
   tooltip.value = {
-    label: cell.label,
+    count: cell.count,
+    entryLabel: cell.entryLabel,
+    date: cell.formattedDate,
     left: Math.max(8, Math.min(
       bounds.left + bounds.width / 2 - tooltipWidth / 2,
       window.innerWidth - tooltipWidth - 8

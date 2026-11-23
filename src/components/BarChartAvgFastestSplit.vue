@@ -8,6 +8,7 @@
                 :split="tooltip.split"
                 :x="tooltip.x"
                 :y="tooltip.y"
+                :align-right="tooltip.alignRight"
             />
         </div>
     </div>
@@ -84,17 +85,19 @@ function formatMsToMinSec(ms) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-function renderTooltip({ tooltip: chartTooltip }) {
+function renderTooltip({ chart, tooltip: chartTooltip }) {
     const dataPoint = chartTooltip.dataPoints?.[0]
     if (!chartTooltip.opacity || !dataPoint) {
         tooltip.value = { ...tooltip.value, visible: false }
         return
     }
 
+    const alignRight = dataPoint.dataIndex === chart.data.labels.length - 1
     tooltip.value = {
         visible: true,
-        x: chartTooltip.x,
+        x: alignRight ? chartTooltip.caretX : chartTooltip.x,
         y: chartTooltip.y,
+        alignRight,
         splitName: dataPoint.label,
         split: props.advancedData.data[dataPoint.label.toLowerCase()]
     }
