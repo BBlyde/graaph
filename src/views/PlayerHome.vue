@@ -1,8 +1,8 @@
 <template>
     <section class="flex min-h-[calc(100vh-5rem)] items-center justify-center px-5 py-16">
         <div class="relative w-full max-w-xl" @focusin="isSearchFocused = true" @focusout="handleSearchFocusOut">
-            <p class="mb-4 text-center text-sm text-zinc-400">
-                Enter a runner name to explore player stats
+            <p class="mb-4 text-center text-lg text-zinc-400">
+                Enter a runner name to explore their statistics
             </p>
             <form class="w-full" @submit.prevent="goToPlayer">
                 <label for="player-username" class="sr-only">Minecraft username</label>
