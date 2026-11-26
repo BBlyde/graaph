@@ -16,7 +16,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
@@ -81,29 +81,28 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
     }
 }
 
-const splitData = props.advancedData.data
 const splits = ['Nether', 'Bastion', 'Fortress', 'Stronghold', 'End', 'Elytra', 'Credits']
-const chartData = {
+const splitKeys = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+const chartData = computed(() => ({
     labels: splits,
     datasets: [
         {
-            data: [splitData.nether.counter, splitData.bastion.counter, splitData.fortress.counter, splitData.stronghold.counter, splitData.end.counter, splitData.elytra.counter, splitData.credits.counter],
+            data: splitKeys.map(split => props.advancedData.data[split].counter),
             backgroundColor: ['#512020', '#2d2b36', '#37181d', '#686b68', '#A5AB7D', '#a170a0', '#030b13'],
             borderWidth: 0,
-            barPercentage: 0.62,
-            categoryPercentage: 0.72
+            barThickness: 32
         },
     ]
-}
+}))
 
 const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     animation: {
-        duration: 1500,
+        duration: 800,
         easing: 'easeOutQuart',
         delay: context => context.type === 'data'
-            ? context.dataIndex * 110 + context.datasetIndex * 70
+            ? context.dataIndex * 30
             : 0
     },
     font: { family: 'Outfit, sans-serif' },
@@ -116,6 +115,7 @@ const chartOptions = {
         },
         datalabels: {
             color: '#fff',
+            clip: false,
             anchor: 'center',
             align: 'center',
             display: context => Number.isFinite(context.dataset.data[context.dataIndex]) && context.dataset.data[context.dataIndex] > 0,
@@ -141,6 +141,9 @@ const chartOptions = {
         y: {
             beginAtZero: true,
             ticks: { color: '#71717a', precision: 0, font: { family: 'Outfit, sans-serif', size: 13 } },
+            afterFit: scale => {
+                scale.width = Math.max(scale.width, 48)
+            },
             grid: { color: 'rgba(255, 255, 255, 0.06)' },
             border: { display: false }
         }

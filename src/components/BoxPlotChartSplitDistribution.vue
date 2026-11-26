@@ -80,10 +80,12 @@ const rows = computed(() => {
     })
 })
 
+const rowsWithDistribution = computed(() => rows.value.filter(row => row.count > 1))
+
 const chartData = computed(() => {
-    const maxTime = Math.max(0, ...rows.value.map(row => row.max ?? 0))
+    const maxTime = Math.max(0, ...rowsWithDistribution.value.map(row => row.max))
     const medianHalfWidth = maxTime * 0.004
-    const pick = build => rows.value.map(row => row.count ? build(row) : null)
+    const pick = build => rows.value.map(row => row.count > 1 ? build(row) : null)
 
     return {
         labels: rows.value.map(row => row.label),
@@ -119,7 +121,7 @@ const chartData = computed(() => {
 })
 
 const minuteTickStep = computed(() => {
-    const maxMinutes = Math.max(0, ...rows.value.map(row => row.max ?? 0)) / 60000
+    const maxMinutes = Math.max(0, ...rowsWithDistribution.value.map(row => row.max)) / 60000
     const targetStep = maxMinutes / 5
     if (targetStep <= 1) return 60000
 

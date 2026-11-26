@@ -1,7 +1,7 @@
 <template>
   <section class="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
     <div v-if="loading" class="border border-primarry bg-[#151517] px-5 py-4 text-sm text-zinc-300">
-      Loading graaphs...
+      LOADING GRAAPHS..
     </div>
     <div v-else-if="error && !advancedData" class="border border-red-500 bg-[#151517] px-5 py-4 text-sm text-red-200"
       role="alert">
@@ -31,7 +31,7 @@
       </div>
 
       <div v-if="loading" class="border border-primarry bg-[#151517] px-5 py-4 text-sm text-zinc-300" role="status">
-        Loading statistics for this period...
+        LOADING GRAAPHS..
       </div>
       <div v-else-if="error" class="border border-red-500 bg-[#151517] px-5 py-4 text-sm text-red-200" role="alert">
         {{ error }}
@@ -45,7 +45,7 @@
               No data available for the selected period.
             </p>
           </div>
-          <BarChartSplitStats :advancedData="advancedData" />
+          <BarChartSplitStats :key="selectedDays" :advancedData="advancedData" />
         </article>
 
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
@@ -69,7 +69,7 @@
               No data available for the selected period.
             </p>
           </div>
-          <BarChartAvgFastestSplit :advancedData="advancedData" :selectedMetric="selectedSplitMetric" />
+          <BarChartAvgFastestSplit :key="selectedDays" :advancedData="advancedData" :selectedMetric="selectedSplitMetric" />
         </article>
 
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
@@ -95,7 +95,7 @@
             <h2 class="text-sm font-semibold text-zinc-100">SPLIT DISTRIBUTION</h2>
             <p class="mt-1 text-xs text-zinc-500">Spread of individual segment times by period</p>
           </div>
-          <BoxPlotChartSplitDistribution :segmentTimes="segmentTimes" :selectedDays="selectedDays" />
+          <BoxPlotChartSplitDistribution :key="selectedDays" :segmentTimes="segmentTimes" :selectedDays="selectedDays" />
         </article>
 
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
@@ -165,9 +165,20 @@ const selectedPeriodName = computed(() => {
   return periodLabels[selectedDays.value]
 })
 let latestRequest = 0
+let cachedPlayerData = null
+let cachedPlayerId = ''
+
+const getPlayerDataForPeriod = (playerData, id, selectedDay) => {
+  const periodData = getPlayerDataByDay(playerData, selectedDay)
+  const playerDataTrimmed = trimAllDataByPlayerId(periodData, id)
+  hasPeriodData.value = Object.values(playerDataTrimmed.data).some(split => split?.counter > 0)
+  return playerDataTrimmed
+}
 
 const fetchPlayer = async (id, day) => {
   const request = ++latestRequest
+  cachedPlayerData = null
+  cachedPlayerId = ''
   const isSamePlayer = id.trim().toLowerCase() === advancedData.value?.nickname?.trim().toLowerCase()
   const existingPlace = isSamePlayer ? advancedData.value.place : undefined
   const existingCompletionTime = isSamePlayer ? advancedData.value.completionTime : undefined
@@ -234,8 +245,7 @@ const fetchPlayer = async (id, day) => {
     }, null)
 
     // Advanced BarChartBuild the data for the said player as long as all the leaderboards for avgs, fastest and numbers
-    const periodData = getPlayerDataByDay(playerData, day)
-    const playerDataTrimmed = trimAllDataByPlayerId(periodData, id) // Advanced BarChart
+    const playerDataTrimmed = getPlayerDataForPeriod(playerData, id, day)
 
     // Build the average data for the said player with all time periods    
     const playerDataAllPeriod = await getPlayerDataForAllPeriod(playerData, id)
@@ -264,7 +274,6 @@ const fetchPlayer = async (id, day) => {
     splitData.value = eachSplitTimeAllPeriod
     segmentStats.value = playerSplitStatsByPeriod
     segmentTimes.value = playerSegmentTimes
-    hasPeriodData.value = Object.values(playerDataTrimmed.data).some(split => split?.counter > 0)
 
     if (!isSamePlayer) {
       try {
@@ -282,7 +291,11 @@ const fetchPlayer = async (id, day) => {
       }
     }
 
-    if (request === latestRequest) advancedData.value = nextAdvancedData
+    if (request === latestRequest) {
+      advancedData.value = nextAdvancedData
+      cachedPlayerData = playerData
+      cachedPlayerId = id.trim().toLowerCase()
+    }
   } catch (e) {
     console.error('Unable to load player statistics:', e)
     if (request === latestRequest) error.value = 'Unable to load player statistics. Please try again later.'
@@ -295,10 +308,20 @@ const fetchPlayer = async (id, day) => {
 }
 
 function changeDay(newDay) {
-  if (newDay !== day.value) {
-    day.value = newDay
-    fetchPlayer(route.params.id, day.value)
+  if (newDay === day.value) return
+  day.value = newDay
+
+  const id = route.params.id
+  if (cachedPlayerData && cachedPlayerId === id.trim().toLowerCase()) {
+    const playerDataTrimmed = getPlayerDataForPeriod(cachedPlayerData, id, day.value)
+    advancedData.value = {
+      ...advancedData.value,
+      data: playerDataTrimmed.data
+    }
+    return
   }
+
+  fetchPlayer(id, day.value)
 }
 
 onMounted(() => {

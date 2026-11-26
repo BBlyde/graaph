@@ -7,6 +7,7 @@ page upload pb?
 sur le troisieme graph comprendre la différence du nombre de nether et de bastion
 fix données entre graph 3 et 5
 centrer tooltip du graph du pb playerpage 
+trim data : feinberg fastest end exits, cro slowest bastion
 
 # graaph
 
