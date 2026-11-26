@@ -8,6 +8,9 @@
             :x="tooltip.x"
             :y="tooltip.y"
             :align-right="tooltip.alignRight"
+            :align-center="tooltip.alignCenter"
+            :anchor-to-point="true"
+            :place-below="tooltip.placeBelow"
         />
     </div>
 </template>
@@ -44,7 +47,16 @@ const props = defineProps({
     }
 })
 
-const tooltip = ref({ visible: false, x: 0, y: 0, splitName: '', split: null })
+const tooltip = ref({
+    visible: false,
+    x: 0,
+    y: 0,
+    splitName: '',
+    split: null,
+    alignRight: false,
+    alignCenter: false,
+    placeBelow: false
+})
 
 function renderTooltip({ chart, tooltip: chartTooltip }) {
     const dataPoint = chartTooltip.dataPoints?.[0]
@@ -53,12 +65,17 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
         return
     }
 
-    const alignRight = dataPoint.dataIndex === chart.data.labels.length - 1
+    const { x, y } = dataPoint.element.tooltipPosition()
+    const isFirstBar = dataPoint.dataIndex === 0
+    const isLastBar = dataPoint.dataIndex === chart.data.labels.length - 1
+    const hasRoomAbove = y - chart.chartArea.top >= 90
     tooltip.value = {
         visible: true,
-        x: alignRight ? chartTooltip.caretX : chartTooltip.x,
-        y: chartTooltip.y,
-        alignRight,
+        x,
+        y,
+        alignRight: isLastBar,
+        alignCenter: !isFirstBar && !isLastBar,
+        placeBelow: !hasRoomAbove,
         splitName: dataPoint.label,
         split: props.advancedData.data[dataPoint.label.toLowerCase()]
     }

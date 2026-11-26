@@ -1,7 +1,7 @@
 <template>
     <div
         class="pointer-events-none absolute z-10 w-max whitespace-nowrap border border-white/15 bg-[#101011] px-3 py-2 text-xs text-white shadow-lg"
-        :style="{ left: `${props.x}px`, top: `${props.y}px`, transform: props.alignRight ? 'translateX(-100%)' : undefined }"
+        :style="{ left: `${props.x}px`, top: `${props.y}px`, transform: tooltipTransform }"
         role="tooltip"
     >
         <div>
@@ -17,6 +17,8 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
     splitName: {
         type: String,
@@ -37,7 +39,32 @@ const props = defineProps({
     alignRight: {
         type: Boolean,
         default: false
+    },
+    alignCenter: {
+        type: Boolean,
+        default: false
+    },
+    anchorToPoint: {
+        type: Boolean,
+        default: false
+    },
+    centerVertically: {
+        type: Boolean,
+        default: false
+    },
+    placeBelow: {
+        type: Boolean,
+        default: false
     }
+})
+
+const tooltipTransform = computed(() => {
+    const transforms = []
+    if (props.alignCenter) transforms.push('translateX(-50%)')
+    else if (props.alignRight) transforms.push('translateX(-100%)')
+    if (props.centerVertically) transforms.push('translateY(-50%)')
+    else if (props.anchorToPoint && !props.placeBelow) transforms.push('translateY(-100%)')
+    return transforms.length ? transforms.join(' ') : undefined
 })
 
 function formatRank(rank) {

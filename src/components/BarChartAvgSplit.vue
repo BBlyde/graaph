@@ -4,7 +4,11 @@
         <div
             v-if="tooltip.visible"
             class="pointer-events-none absolute z-10 border border-white/15 bg-[#101011] px-3 py-2 text-xs text-white shadow-lg"
-            :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }"
+            :style="{
+                left: `${tooltip.x}px`,
+                top: `${tooltip.y}px`,
+                transform: `translate(-50%, ${tooltip.placeBelow ? '0' : '-100%'})`
+            }"
             role="tooltip"
         >
             <div v-for="(line, index) in tooltip.lines" :key="index" class="mb-2 last:mb-0">
@@ -37,15 +41,16 @@ Tooltip.positioners.segmentCenter = function (items) {
     if (!element) return false
 
     const center = element.getCenterPoint()
-    const isFirstRow = activeItem.index === 0
-    const y = isFirstRow
-        ? center.y + element.height / 2
-        : center.y - element.height / 2
+    const top = center.y - element.height / 2
+    const bottom = center.y + element.height / 2
+    const estimatedHeight = 18 + items.length * 56
+    const placeBelow = this.chart.chartArea.bottom - bottom >= estimatedHeight
 
     return {
         x: center.x,
-        y,
-        yAlign: isFirstRow ? 'top' : 'bottom'
+        y: placeBelow ? bottom : top,
+        xAlign: 'center',
+        yAlign: placeBelow ? 'top' : 'bottom'
     }
 }
 
@@ -71,21 +76,29 @@ function formatRank(rank) {
     return rank == null ? '—' : `#${rank}`
 }
 
-const tooltip = ref({ visible: false, x: 0, y: 0, title: '', lines: [] })
+const tooltip = ref({ visible: false, x: 0, y: 0, placeBelow: false, lines: [] })
 const segmentKeys = ['overworld', 'nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra']
 const periodKeys = ['avg1d', 'avg7d', 'avg30d', 'avgAT']
 
-function renderTooltip({ tooltip: chartTooltip }) {
+function renderTooltip({ chart, tooltip: chartTooltip }) {
     const dataPoints = chartTooltip.dataPoints
     if (!chartTooltip.opacity || !dataPoints?.length) {
         tooltip.value = { ...tooltip.value, visible: false }
         return
     }
 
+    const element = dataPoints[0].element
+    const center = element.getCenterPoint()
+    const top = center.y - element.height / 2
+    const bottom = center.y + element.height / 2
+    const estimatedHeight = 18 + dataPoints.length * 56
+    const placeBelow = chart.chartArea.bottom - bottom >= estimatedHeight
+
     tooltip.value = {
         visible: true,
-        x: chartTooltip.x,
-        y: chartTooltip.y,
+        x: center.x,
+        y: placeBelow ? bottom : top,
+        placeBelow,
         lines: dataPoints.map(dataPoint => {
             const segment = segmentKeys[dataPoint.datasetIndex]
             const period = periodKeys[dataPoint.dataIndex]

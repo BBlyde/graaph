@@ -21,7 +21,7 @@
           <span
             :aria-describedby="completionTime ? completionTimeTooltipId : undefined"
             :tabindex="completionTime ? 0 : undefined"
-            class="cursor-help text-xl font-medium text-zinc-400 outline-none focus-visible:outline-2 focus-visible:outline-primarry sm:text-2xl"
+            class="text-xl font-medium text-zinc-400 outline-none focus-visible:outline-2 focus-visible:outline-primarry sm:text-2xl"
             style="color: var(--color-primarry)"
           >
             {{ rankLabel }}
@@ -29,7 +29,7 @@
           <span
             v-if="completionTime"
             :id="completionTimeTooltipId"
-            class="pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-2 w-max -translate-x-1/2 border border-white/15 bg-[#101011] px-3 py-2 text-center text-xs font-medium text-zinc-200 shadow-lg group-hover:visible group-focus-within:visible"
+            class="pointer-events-none invisible absolute left-full top-1/2 z-20 ml-2 w-max -translate-y-1/2 border border-white/15 bg-[#101011] px-3 py-2 text-center text-xs font-medium text-zinc-200 shadow-lg group-hover:visible group-focus-within:visible"
             role="tooltip"
           >
             PB :<span class="ml-1" style="color: var(--color-primarry)">{{ completionTime }}</span>

@@ -43,9 +43,28 @@
       </section>
     </div>
     <div
+      class="mt-6 flex items-center justify-center gap-1.5 text-xs text-zinc-500"
+      role="img"
+      aria-label="Entry count intensity from less to more"
+    >
+      <span>Less</span>
+      <span
+        v-for="color in colors"
+        :key="color"
+        class="h-3 w-3 rounded-[2px] outline outline-1 outline-white/5"
+        :style="{ backgroundColor: color }"
+        aria-hidden="true"
+      ></span>
+      <span>More</span>
+    </div>
+    <div
       v-if="tooltip"
       class="pointer-events-none fixed z-[100] rounded border border-white/15 bg-[#09090b] px-2.5 py-1.5 text-xs text-zinc-100 shadow-xl"
-      :style="{ left: `${tooltip.left}px`, top: `${tooltip.top}px` }"
+      :style="{
+        left: `${tooltip.left}px`,
+        top: `${tooltip.top}px`,
+        transform: 'translateY(-50%)'
+      }"
       role="tooltip"
       aria-hidden="true"
     >
@@ -150,16 +169,12 @@ function showTooltip(event, cell) {
   if (!cell.label) return
 
   const bounds = event.currentTarget.getBoundingClientRect()
-  const tooltipWidth = 240
   tooltip.value = {
     count: cell.count,
     entryLabel: cell.entryLabel,
     date: cell.formattedDate,
-    left: Math.max(8, Math.min(
-      bounds.left + bounds.width / 2 - tooltipWidth / 2,
-      window.innerWidth - tooltipWidth - 8
-    )),
-    top: bounds.top > 48 ? bounds.top - 40 : bounds.bottom + 8
+    left: bounds.right,
+    top: bounds.top + bounds.height / 2
   }
 }
 </script>

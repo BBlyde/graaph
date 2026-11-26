@@ -9,6 +9,8 @@
                 :x="tooltip.x"
                 :y="tooltip.y"
                 :align-right="tooltip.alignRight"
+                :anchor-to-point="true"
+                :center-vertically="true"
             />
         </div>
     </div>
@@ -58,6 +60,8 @@ const chartData = computed(() => ({
             backgroundColor: splitColors,
             pointBackgroundColor: splitColors,
             pointBorderColor: '#151517',
+            pointRadius: 5,
+            pointHoverRadius: 5,
             borderWidth: 2,
             tension: 0.2
         }
@@ -92,12 +96,13 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
         return
     }
 
-    const alignRight = dataPoint.dataIndex === chart.data.labels.length - 1
+    const { x, y } = dataPoint.element.tooltipPosition()
+    const placeOnLeft = dataPoint.dataIndex === chart.data.labels.length - 1
     tooltip.value = {
         visible: true,
-        x: alignRight ? chartTooltip.caretX : chartTooltip.x,
-        y: chartTooltip.y,
-        alignRight,
+        x: x + (placeOnLeft ? -8 : 8),
+        y,
+        alignRight: placeOnLeft,
         splitName: dataPoint.label,
         split: props.advancedData.data[dataPoint.label.toLowerCase()]
     }

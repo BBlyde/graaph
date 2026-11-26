@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchPlayerProgression } from '../src/services/playerService.js'
+import { fetchPlayerProgression, getPlayerSegmentTimesForAllPeriods } from '../src/services/playerService.js'
 
 test('progression keeps only strictly improving times in chronological order for each runner', async t => {
   const csv = [
@@ -25,4 +25,16 @@ test('progression keeps only strictly improving times in chronological order for
   assert.deepEqual(alpha.map(record => new Date(record.timestamp).getUTCDate()), [1, 3, 5])
   assert.deepEqual(beta.map(record => record.time), [10800000, 7200000])
   assert.deepEqual(missing, [])
+})
+
+test('segment distributions include each run’s Outer End time', () => {
+  const runs = [
+    { nickname: 'Alpha', insertTime: new Date().toISOString(), nether: 180000, end: 500000, elytra: 600000, credits: 900000 },
+    { nickname: 'Alpha', insertTime: new Date().toISOString(), nether: 190000, end: 600000, elytra: 700000, credits: 1100000 }
+  ]
+
+  const segmentTimes = getPlayerSegmentTimesForAllPeriods(runs, 'alpha')
+
+  assert.deepEqual(segmentTimes.elytra.avgAT, [300000, 400000])
+  assert.deepEqual(segmentTimes.elytra.avg1d, [300000, 400000])
 })

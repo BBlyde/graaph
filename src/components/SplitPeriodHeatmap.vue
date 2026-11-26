@@ -29,11 +29,13 @@
                 </tbody>
             </table>
         </div>
-        <div class="mt-4 flex items-center justify-end gap-2 text-[11px] text-zinc-500">
-            <span>Faster</span>
-            <span class="h-2.5 w-20" style="background: linear-gradient(to right, #166534, #854d0e, #9f1239)" aria-hidden="true"></span>
-            <span>Slower</span>
-            <span class="ml-1">· relative within each cumulative split</span>
+        <div class="mt-4 flex flex-col items-end gap-1 text-xs text-zinc-500">
+            <div class="flex items-center gap-2">
+                <span>Faster</span>
+                <span class="h-2.5 w-20" style="background: linear-gradient(to right, #166534, #854d0e, #9f1239)" aria-hidden="true"></span>
+                <span>Slower</span>
+            </div>
+            <span>Relative within each split</span>
         </div>
     </div>
 </template>

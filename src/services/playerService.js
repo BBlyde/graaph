@@ -585,6 +585,40 @@ export function getPlayerSplitStatsForAllPeriods(data, nickname) {
   return result
 }
 
+/* Individual segment times (one entry per run) of the player for each period, used for distributions */
+export function getPlayerSegmentTimesForAllPeriods(data, nickname) {
+  const checkpoints = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+  const segments = ['overworld', 'nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra']
+  const periods = [
+    { key: 'avg1d', days: 1 },
+    { key: 'avg7d', days: 7 },
+    { key: 'avg30d', days: 30 },
+    { key: 'avgAT', days: 9999 }
+  ]
+  const requestedPlayer = nickname.trim().toLowerCase()
+  const result = Object.fromEntries(segments.map(segment => [
+    segment,
+    Object.fromEntries(periods.map(({ key }) => [key, []]))
+  ]))
+  const cutoffs = periods.map(({ days }) => new Date(Date.now() - 24 * 60 * 60 * 1000 * days).toISOString())
+
+  for (const run of data) {
+    if (!(run.nether > 120000 || run.elytra)) continue
+    if (typeof run.nickname !== 'string' || run.nickname.trim().toLowerCase() !== requestedPlayer) continue
+
+    segments.forEach((segment, index) => {
+      const end = run[checkpoints[index]]
+      const start = index === 0 ? 0 : run[checkpoints[index - 1]]
+      if (!Number.isFinite(end) || !Number.isFinite(start) || end <= start) return
+
+      periods.forEach(({ key }, periodIndex) => {
+        if (run.insertTime >= cutoffs[periodIndex]) result[segment][key].push(end - start)
+      })
+    })
+  }
+  return result
+}
+
 /* Build each average data array for one specifid time period */
 export async function getAllDataByPlayerAndDay(data, player, day) {
   const trimData = await sanitizeData(data, day)

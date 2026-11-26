@@ -34,6 +34,11 @@ const routes = [
     component: VersusPage
   },
   {
+    path: '/versus/:player1/:player2',
+    name: 'VersusPlayers',
+    component: VersusPage
+  },
+  {
     path: '/leaderboard',
     name: 'Leaderboard',
     component: LeaderBoardPage
