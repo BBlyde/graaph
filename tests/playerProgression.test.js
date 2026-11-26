@@ -4,6 +4,9 @@ import {
   fetchDataPacemanApi,
   fetchPlayerProgression,
   fetchPlayerRunHistory,
+  getPlayerDataByDay,
+  getPlayerStatsForAllPeriods,
+  getPlayerSplitStatsForAllPeriods,
   getPlayerSegmentTimesForAllPeriods
 } from '../src/services/playerService.js'
 
@@ -54,6 +57,62 @@ test('player run history is cached by normalized nickname', async t => {
   assert.equal(first[0].nickname, 'CacheTester')
   assert.equal(second[0].nickname, 'cachetester')
   assert.equal(first[0].insertTime, new Date(1704067200000).toISOString())
+})
+
+test('period rankings preserve positions and insertion order for ties', () => {
+  const insertTime = new Date().toISOString()
+  const runs = [
+    { nickname: 'Alpha', insertTime, nether: 180000 },
+    { nickname: 'Target', insertTime, nether: 180000 },
+    { nickname: 'Gamma', insertTime, nether: 150000 }
+  ]
+
+  const playerData = getPlayerDataByDay(runs, 9999, 'target')
+  const stats = playerData[0].target.nether
+  const avgRank = playerData[1].nether[0].position
+  const fastestRank = playerData[2].nether[0].position
+  const counterRank = playerData[3].nether[0].position
+
+  assert.equal(stats.avg, 180000)
+  assert.equal(avgRank, 3)
+  assert.equal(fastestRank, 3)
+  assert.equal(counterRank, 2)
+})
+
+test('segment rankings preserve positions and insertion order for ties', () => {
+  const insertTime = new Date().toISOString()
+  const runs = [
+    { nickname: 'Alpha', insertTime, nether: 180000, bastion: 300000 },
+    { nickname: 'Target', insertTime, nether: 180000, bastion: 300000 },
+    { nickname: 'Gamma', insertTime, nether: 150000, bastion: 250000 }
+  ]
+
+  const stats = getPlayerSplitStatsForAllPeriods(runs, 'target').overworld.avgAT
+
+  assert.equal(stats.lbAvg, 3)
+  assert.equal(stats.lbFastest, 3)
+  assert.equal(stats.lbCounter, 2)
+})
+
+test('combined period stats retain each period’s averages and segment runs', () => {
+  const now = Date.now()
+  const runs = [
+    { nickname: 'Target', insertTime: new Date(now - 60_000).toISOString(), nether: 180000, bastion: 300000 },
+    { nickname: 'Target', insertTime: new Date(now - 10 * 86400000).toISOString(), nether: 200000, bastion: 320000 }
+  ]
+
+  const stats = getPlayerStatsForAllPeriods(runs, 'target')
+
+  assert.deepEqual(stats.splitData.nether, {
+    avg1d: 180000,
+    avg7d: 180000,
+    avg30d: 190000,
+    avgAT: 190000
+  })
+  assert.deepEqual(stats.segmentTimes.overworld.avg1d, [180000])
+  assert.deepEqual(stats.segmentTimes.overworld.avg30d, [180000, 200000])
+  assert.equal(stats.segmentStats.overworld.avgAT.counter, 2)
+  assert.equal(stats.segmentStats.overworld.avgAT.fastest, 180000)
 })
 
 test('progression keeps only strictly improving times in chronological order for each runner', async t => {

@@ -1,13 +1,20 @@
 # ROADMAP
+P0
 Ajouté la conversion dans les bar charts
 page accueil : box recent completion, Compteur de splis journalier (nether et end exit), meilleur joueur avg &number pour chaque split & chaque period
 Page history wr
+sur le troisieme graph comprendre la différence du nombre de nether et de bastion
+fix données entre graph 3 et 
+trim data : feinberg fastest end exits, cro slowest bastion
+titre onglet
+logo onglet
+
+P1
+google seo
+
+P2
 Page currently live?
 page upload pb?
-sur le troisieme graph comprendre la différence du nombre de nether et de bastion
-fix données entre graph 3 et 5
-centrer tooltip du graph du pb playerpage 
-trim data : feinberg fastest end exits, cro slowest bastion
 
 # graaph
 
