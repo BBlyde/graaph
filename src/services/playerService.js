@@ -1,6 +1,29 @@
 ////// GENERAL FUNCTIONS
 
 const progressionSheetUrl = 'https://docs.google.com/spreadsheets/d/107ijqjELTQQ29KW4phUmtvYFTX9-pfHsjb18TKoWACk/gviz/tq?tqx=out:csv&gid=735237004'
+const responseCache = new Map()
+const responseCacheTtlMs = 5 * 60_000
+
+function getCachedRequest(key, request) {
+  const cachedEntry = responseCache.get(key)
+  if (cachedEntry && cachedEntry.expiresAt > Date.now()) return cachedEntry.promise
+
+  const entry = { expiresAt: Infinity, promise: null }
+  entry.promise = Promise.resolve().then(request).then(
+    value => {
+      if (responseCache.get(key) === entry) {
+        entry.expiresAt = Date.now() + responseCacheTtlMs
+      }
+      return value
+    },
+    error => {
+      if (responseCache.get(key) === entry) responseCache.delete(key)
+      throw error
+    }
+  )
+  responseCache.set(key, entry)
+  return entry.promise
+}
 
 function parseCsvRows(csv) {
   const rows = []
@@ -100,68 +123,76 @@ export async function fetchPlayerProgression(nickname) {
 
 /* Calling the Paceman API */
 export async function fetchDataPacemanApi() {
-  const res = await fetch(`/api/getAllData/?days=9999`)
-  if (!res.ok) throw new Error(`Paceman API error (${res.status})`)
-  const json = await res.json()
-  if (!Array.isArray(json.data)) throw new Error('Invalid Paceman API response')
-  return json.data
+  return getCachedRequest('paceman:all-data:9999', async () => {
+    const res = await fetch(`/api/getAllData/?days=9999`)
+    if (!res.ok) throw new Error(`Paceman API error (${res.status})`)
+    const json = await res.json()
+    if (!Array.isArray(json.data)) throw new Error('Invalid Paceman API response')
+    return json.data
+  })
 }
 
 export async function fetchPlayerRunHistory(nickname) {
-  const playerParams = new URLSearchParams({ names: nickname })
-  const playerResponse = await fetch(`/paceman-stats-api/getPlayerInfo/?${playerParams}`)
-  if (!playerResponse.ok) throw new Error(`Paceman player API error (${playerResponse.status})`)
-  const players = await playerResponse.json()
-  if (!players || typeof players !== 'object' || Array.isArray(players)) {
-    throw new Error('Invalid Paceman player API response')
-  }
-
   const requestedNickname = nickname.trim().toLowerCase()
-  const player = Object.values(players).find(entry =>
-    typeof entry?.nick === 'string' && entry.nick.trim().toLowerCase() === requestedNickname
-  )
-  if (!player) return []
-  if (typeof player.id !== 'string' || !player.id) {
-    throw new Error('Invalid Paceman player identifier')
-  }
-
-  const rows = []
-  const seenCursors = new Set()
-  let beforeId
-  let hasMore = true
-
-  while (hasMore) {
-    const params = new URLSearchParams({ uuid: player.id, limit: '100' })
-    if (beforeId !== undefined) params.set('beforeId', String(beforeId))
-
-    const response = await fetch(`/paceman-stats-api/getAAPlayerRuns/?${params}`)
-    if (!response.ok) throw new Error(`Paceman run history API error (${response.status})`)
-    const page = await response.json()
-    if (!Array.isArray(page.rows) || typeof page.hasMore !== 'boolean') {
-      throw new Error('Invalid Paceman run history API response')
+  const rows = await getCachedRequest(`paceman:player-runs:${requestedNickname}`, async () => {
+    const playerParams = new URLSearchParams({ names: nickname })
+    const playerResponse = await fetch(`/paceman-stats-api/getPlayerInfo/?${playerParams}`)
+    if (!playerResponse.ok) throw new Error(`Paceman player API error (${playerResponse.status})`)
+    const players = await playerResponse.json()
+    if (!players || typeof players !== 'object' || Array.isArray(players)) {
+      throw new Error('Invalid Paceman player API response')
     }
 
-    rows.push(...page.rows)
-    hasMore = page.hasMore
-    if (hasMore) {
-      if (!Number.isInteger(page.nextCursor) || seenCursors.has(page.nextCursor)) {
-        throw new Error('Invalid Paceman run history pagination cursor')
+    const player = Object.values(players).find(entry =>
+      typeof entry?.nick === 'string' && entry.nick.trim().toLowerCase() === requestedNickname
+    )
+    if (!player) return []
+    if (typeof player.id !== 'string' || !player.id) {
+      throw new Error('Invalid Paceman player identifier')
+    }
+
+    const playerRows = []
+    const seenCursors = new Set()
+    let beforeId
+    let hasMore = true
+
+    while (hasMore) {
+      const params = new URLSearchParams({ uuid: player.id, limit: '100' })
+      if (beforeId !== undefined) params.set('beforeId', String(beforeId))
+
+      const response = await fetch(`/paceman-stats-api/getAAPlayerRuns/?${params}`)
+      if (!response.ok) throw new Error(`Paceman run history API error (${response.status})`)
+      const page = await response.json()
+      if (!Array.isArray(page.rows) || typeof page.hasMore !== 'boolean') {
+        throw new Error('Invalid Paceman run history API response')
       }
-      beforeId = page.nextCursor
-      seenCursors.add(beforeId)
-    }
-  }
 
-  return rows.map(run => {
-    if (!Number.isFinite(run.lastUpdated)) {
-      throw new Error('Invalid Paceman run timestamp')
+      playerRows.push(...page.rows)
+      hasMore = page.hasMore
+      if (hasMore) {
+        if (!Number.isInteger(page.nextCursor) || seenCursors.has(page.nextCursor)) {
+          throw new Error('Invalid Paceman run history pagination cursor')
+        }
+        beforeId = page.nextCursor
+        seenCursors.add(beforeId)
+      }
     }
-    return {
-      ...run,
-      nickname,
-      insertTime: new Date(run.lastUpdated).toISOString()
-    }
+
+    return playerRows.map(run => {
+      if (!Number.isFinite(run.lastUpdated)) {
+        throw new Error('Invalid Paceman run timestamp')
+      }
+      return {
+        ...run,
+        insertTime: new Date(run.lastUpdated).toISOString()
+      }
+    })
   })
+
+  return rows.map(run => ({
+    ...run,
+    nickname
+  }))
 }
 
 /* Trimming the data to only get the runs played X days ago */

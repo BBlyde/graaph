@@ -1,6 +1,60 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchPlayerProgression, getPlayerSegmentTimesForAllPeriods } from '../src/services/playerService.js'
+import {
+  fetchDataPacemanApi,
+  fetchPlayerProgression,
+  fetchPlayerRunHistory,
+  getPlayerSegmentTimesForAllPeriods
+} from '../src/services/playerService.js'
+
+test('global Paceman data requests are shared and cached', async t => {
+  let fetchCount = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    fetchCount++
+    return new Response(JSON.stringify({ data: [] }))
+  })
+
+  const [first, second] = await Promise.all([
+    fetchDataPacemanApi(),
+    fetchDataPacemanApi()
+  ])
+  const third = await fetchDataPacemanApi()
+
+  assert.equal(fetchCount, 1)
+  assert.deepEqual(first, [])
+  assert.deepEqual(second, [])
+  assert.deepEqual(third, [])
+})
+
+test('player run history is cached by normalized nickname', async t => {
+  let fetchCount = 0
+  t.mock.method(globalThis, 'fetch', async input => {
+    fetchCount++
+    const { pathname } = new URL(input, 'http://localhost')
+    if (pathname.endsWith('/getPlayerInfo/')) {
+      return new Response(JSON.stringify({
+        runner: { nick: 'CacheTester', id: 'cache-player-id' }
+      }))
+    }
+    if (pathname.endsWith('/getAAPlayerRuns/')) {
+      return new Response(JSON.stringify({
+        rows: [{ lastUpdated: 1704067200000 }],
+        hasMore: false
+      }))
+    }
+    throw new Error(`Unexpected request: ${pathname}`)
+  })
+
+  const [first, second] = await Promise.all([
+    fetchPlayerRunHistory('CacheTester'),
+    fetchPlayerRunHistory('cachetester')
+  ])
+
+  assert.equal(fetchCount, 2)
+  assert.equal(first[0].nickname, 'CacheTester')
+  assert.equal(second[0].nickname, 'cachetester')
+  assert.equal(first[0].insertTime, new Date(1704067200000).toISOString())
+})
 
 test('progression keeps only strictly improving times in chronological order for each runner', async t => {
   const csv = [
