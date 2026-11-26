@@ -3,24 +3,127 @@
 const progressionSheetUrl = 'https://docs.google.com/spreadsheets/d/107ijqjELTQQ29KW4phUmtvYFTX9-pfHsjb18TKoWACk/gviz/tq?tqx=out:csv&gid=735237004'
 const responseCache = new Map()
 const responseCacheTtlMs = 5 * 60_000
+const responseCacheDatabaseName = 'graaph-api-cache'
+const responseCacheStoreName = 'responses'
+let responseCacheDatabasePromise = null
+
+function openResponseCacheDatabase() {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null)
+  if (responseCacheDatabasePromise) return responseCacheDatabasePromise
+
+  responseCacheDatabasePromise = new Promise((resolve, reject) => {
+    let settled = false
+    const request = indexedDB.open(responseCacheDatabaseName, 1)
+    request.onupgradeneeded = () => {
+      const database = request.result
+      const store = database.objectStoreNames.contains(responseCacheStoreName)
+        ? request.transaction.objectStore(responseCacheStoreName)
+        : database.createObjectStore(responseCacheStoreName, { keyPath: 'key' })
+      if (!store.indexNames.contains('expiresAt')) store.createIndex('expiresAt', 'expiresAt')
+    }
+    request.onsuccess = () => {
+      const database = request.result
+      if (settled) {
+        database.close()
+        return
+      }
+      settled = true
+      database.onversionchange = () => {
+        database.close()
+        responseCacheDatabasePromise = null
+      }
+      resolve(database)
+    }
+    request.onerror = () => {
+      if (settled) return
+      settled = true
+      reject(request.error ?? new Error('Unable to open persistent API cache'))
+    }
+    request.onblocked = () => {
+      if (settled) return
+      settled = true
+      reject(new Error('Persistent API cache database is blocked'))
+    }
+  }).catch(error => {
+    responseCacheDatabasePromise = null
+    throw error
+  })
+
+  return responseCacheDatabasePromise
+}
+
+function waitForTransaction(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = resolve
+    transaction.onerror = () => reject(transaction.error ?? new Error('Persistent API cache transaction failed'))
+    transaction.onabort = () => reject(transaction.error ?? new Error('Persistent API cache transaction was aborted'))
+  })
+}
+
+async function readPersistentResponseCache(key) {
+  const database = await openResponseCacheDatabase()
+  if (!database) return null
+
+  const transaction = database.transaction(responseCacheStoreName, 'readwrite')
+  const transactionComplete = waitForTransaction(transaction)
+  const store = transaction.objectStore(responseCacheStoreName)
+  let cachedRecord = null
+  const request = store.get(key)
+  request.onsuccess = () => {
+    const record = request.result
+    if (record && record.expiresAt > Date.now()) cachedRecord = record
+  }
+  const cleanupRequest = store.index('expiresAt').openCursor(IDBKeyRange.upperBound(Date.now()))
+  cleanupRequest.onsuccess = () => {
+    const cursor = cleanupRequest.result
+    if (!cursor) return
+    cursor.delete()
+    cursor.continue()
+  }
+
+  await transactionComplete
+  return cachedRecord
+}
+
+async function writePersistentResponseCache(key, value, expiresAt) {
+  const database = await openResponseCacheDatabase()
+  if (!database) return
+
+  const transaction = database.transaction(responseCacheStoreName, 'readwrite')
+  const transactionComplete = waitForTransaction(transaction)
+  transaction.objectStore(responseCacheStoreName).put({ key, value, expiresAt })
+  await transactionComplete
+}
 
 function getCachedRequest(key, request) {
   const cachedEntry = responseCache.get(key)
   if (cachedEntry && cachedEntry.expiresAt > Date.now()) return cachedEntry.promise
 
   const entry = { expiresAt: Infinity, promise: null }
-  entry.promise = Promise.resolve().then(request).then(
-    value => {
-      if (responseCache.get(key) === entry) {
-        entry.expiresAt = Date.now() + responseCacheTtlMs
-      }
-      return value
-    },
-    error => {
-      if (responseCache.get(key) === entry) responseCache.delete(key)
-      throw error
+  entry.promise = Promise.resolve().then(async () => {
+    let persistentRecord
+    try {
+      persistentRecord = await readPersistentResponseCache(key)
+    } catch (error) {
+      console.warn('Unable to read persistent API cache; fetching fresh data:', error)
     }
-  )
+
+    if (persistentRecord) {
+      if (responseCache.get(key) === entry) entry.expiresAt = persistentRecord.expiresAt
+      return persistentRecord.value
+    }
+
+    const value = await request()
+    const expiresAt = Date.now() + responseCacheTtlMs
+    if (responseCache.get(key) === entry) entry.expiresAt = expiresAt
+    writePersistentResponseCache(key, value, expiresAt).catch(error => {
+      console.warn('Unable to write persistent API cache:', error)
+    })
+    return value
+  }).catch(error => {
+    if (responseCache.get(key) === entry) responseCache.delete(key)
+    throw error
+  })
   responseCache.set(key, entry)
   return entry.promise
 }
