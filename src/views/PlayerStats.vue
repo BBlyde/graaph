@@ -41,9 +41,6 @@
           <div class="mb-4 border-b border-white/10 pb-3">
             <h2 class="text-sm font-semibold text-zinc-100">SPLIT COUNTERS</h2>
             <p class="mt-1 text-xs text-zinc-500">Number of runs per split by period</p>
-            <p v-if="!hasPeriodData" class="mt-2 text-xs text-amber-400" role="status">
-              No data available for the selected period.
-            </p>
           </div>
           <BarChartSplitStats :key="selectedDays" :advancedData="advancedData" />
         </article>
@@ -64,9 +61,6 @@
             </div>
             <p class="mt-1 text-xs text-zinc-500 sm:-mt-2">
               {{ selectedSplitMetric === 'fastest' ? 'Fastest' : 'Average' }} split times by period
-            </p>
-            <p v-if="!hasPeriodData" class="mt-2 text-xs text-amber-400" role="status">
-              No data available for the selected period.
             </p>
           </div>
           <BarChartAvgFastestSplit :key="selectedDays" :advancedData="advancedData" :selectedMetric="selectedSplitMetric" />
@@ -93,17 +87,40 @@
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
           <div class="mb-4 border-b border-white/10 pb-3">
             <h2 class="text-sm font-semibold text-zinc-100">SPLIT DISTRIBUTION</h2>
-            <p class="mt-1 text-xs text-zinc-500">Spread of individual segment times by period</p>
+            <p class="mt-1 text-xs text-zinc-500">Spread of individual split times by period</p>
           </div>
           <BoxPlotChartSplitDistribution :key="selectedDays" :segmentTimes="segmentTimes" :selectedDays="selectedDays" />
         </article>
 
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
           <div class="mb-4 border-b border-white/10 pb-3">
-            <h2 class="text-sm font-semibold text-zinc-100">DAILY ENTERS</h2>
-            <p class="mt-1 text-xs text-zinc-500">Last year daily nether entries</p>
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-sm font-semibold text-zinc-100">DAILY ENTERS</h2>
+              <div class="relative">
+                <label for="daily-enters-year" class="sr-only">Daily enters year</label>
+                <select
+                  id="daily-enters-year"
+                  v-model.number="netherYear"
+                  class="h-8 appearance-none border border-white/15 bg-[#151517] px-3 pr-8 text-sm text-white outline-none transition focus:border-primarry"
+                >
+                  <option v-for="year in netherYears" :key="year" :value="year">{{ year }}</option>
+                </select>
+                <svg
+                  class="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+            </div>
+            <p class="mt-1 text-xs text-zinc-500">Daily nether entries</p>
           </div>
-          <NetherContributionHeatmap :runs="netherEntries" />
+          <NetherContributionHeatmap :key="netherYear" :runs="netherEntries" :year="netherYear" />
         </article>
 
       </div>
@@ -145,11 +162,16 @@ const netherEntries = ref([])
 const progressionRecords = ref([])
 const progressionLoading = ref(true)
 const progressionError = ref(false)
-const hasPeriodData = ref(false)
 const loading = ref(true)
 const error = ref('')
 const day = ref(1)
 const selectedDays = ref(1)
+const currentYear = new Date().getFullYear()
+const netherYear = ref(currentYear)
+const netherYears = Array.from(
+  { length: Math.max(1, currentYear - 2024 + 1) },
+  (_, index) => currentYear - index
+)
 const selectedSplitMetric = ref('avg')
 const splitTimeMetrics = [
   { value: 'avg', label: 'Average' },
@@ -171,7 +193,6 @@ let cachedPlayerId = ''
 const getPlayerDataForPeriod = (playerData, id, selectedDay) => {
   const periodData = getPlayerDataByDay(playerData, selectedDay, id)
   const playerDataTrimmed = trimAllDataByPlayerId(periodData, id)
-  hasPeriodData.value = Object.values(playerDataTrimmed.data).some(split => split?.counter > 0)
   return playerDataTrimmed
 }
 
@@ -190,7 +211,6 @@ const fetchPlayer = async (id, day) => {
   progressionRecords.value = []
   progressionLoading.value = true
   progressionError.value = false
-  hasPeriodData.value = false
   error.value = ''
   loading.value = true
 

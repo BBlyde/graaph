@@ -68,6 +68,8 @@ const chartData = computed(() => ({
     ]
 }))
 
+const hasData = computed(() => chartData.value.datasets[0].data.some(value => Number.isFinite(value) && value > 0))
+
 const minuteTickStep = computed(() => {
     const values = chartData.value.datasets[0].data.filter(Number.isFinite)
     const maxMinutes = Math.max(0, ...values) / 60000
@@ -164,9 +166,13 @@ const chartOptions = computed(() => ({
                 maxTicksLimit: 5,
                 stepSize: minuteTickStep.value,
                 font: { family: 'Outfit, sans-serif', size: 12 },
-                callback: value => formatMsToMinSec(value)
+                callback: value => !hasData.value && value > 0 ? '' : formatMsToMinSec(value)
             },
-            grid: { color: 'rgba(255, 255, 255, 0.06)' },
+            grid: {
+                color: context => !hasData.value && context.tick.value > 0
+                    ? 'transparent'
+                    : 'rgba(255, 255, 255, 0.06)'
+            },
             border: { display: false }
         }
     }

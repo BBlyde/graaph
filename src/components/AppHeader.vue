@@ -6,8 +6,6 @@
             </router-link>
 
             <nav aria-label="Main navigation" class="flex items-center gap-1 sm:gap-2">
-                <router-link to="/" class="nav-link">GRAAPH</router-link>
-                <router-link to="/stats" class="nav-link">STATS</router-link>
                 <router-link to="/player" class="nav-link">PLAYER</router-link>
                 <router-link to="/versus" class="nav-link">VERSUS</router-link>
                 <router-link to="/leaderboard" class="nav-link">LEADERBOARD</router-link>

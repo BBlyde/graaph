@@ -5,8 +5,12 @@ page accueil : box recent completion, Compteur de splis journalier (nether et en
 sur le troisieme graph comprendre la différence du nombre de nether et de bastion
 fix données entre graph 3 et 
 trim data : feinberg fastest end exits, cro slowest bastion
+pour info : split averages all time tooltip de l'end en une seule ligne
+no data for specific period
 
 P1
+responsive
+ovh graaph.run
 google seo
 
 P2

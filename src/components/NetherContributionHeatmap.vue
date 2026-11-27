@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="space-y-4" role="region" aria-label="Daily Nether entries over the last 365 days">
+    <div class="space-y-4" role="region" :aria-label="`Daily Nether entries`">
       <section v-for="(half, halfIndex) in halfYears" :key="halfIndex" :class="{ 'mt-7': halfIndex === 0 }">
         <div v-if="halfIndex > 0" class="mb-4 border-t border-white/10" aria-hidden="true"></div>
         <div class="mb-2 flex justify-center">
@@ -81,27 +81,38 @@ const props = defineProps({
   runs: {
     type: Array,
     required: true
+  },
+  year: {
+    type: Number,
+    required: true
   }
 })
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const DAY_COUNT = 365
 const colors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353']
 const tooltip = ref(null)
 
 const today = new Date()
 today.setUTCHours(0, 0, 0, 0)
-const firstDay = new Date(today.getTime() - (DAY_COUNT - 1) * DAY_MS)
-const gridStart = new Date(firstDay)
-gridStart.setUTCDate(gridStart.getUTCDate() - ((gridStart.getUTCDay() + 6) % 7))
+const todayKey = today.toISOString().slice(0, 10)
+const yearStart = computed(() => new Date(Date.UTC(props.year, 0, 1)))
+const yearEnd = computed(() => new Date(Date.UTC(props.year, 11, 31)))
+const gridStart = computed(() => {
+  const start = new Date(yearStart.value)
+  start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7))
+  return start
+})
 
 const dailyCounts = computed(() => {
   const counts = new Map()
+  const firstDate = yearStart.value.toISOString().slice(0, 10)
+  const lastDate = yearEnd.value.toISOString().slice(0, 10)
+
   for (const run of props.runs) {
     const timestamp = Date.parse(run?.insertTime)
     if (!Number.isFinite(timestamp)) continue
     const date = new Date(timestamp).toISOString().slice(0, 10)
-    if (date < firstDay.toISOString().slice(0, 10) || date > today.toISOString().slice(0, 10)) continue
+    if (date < firstDate || date > lastDate || date > todayKey) continue
     counts.set(date, (counts.get(date) || 0) + 1)
   }
   return counts
@@ -110,16 +121,19 @@ const dailyCounts = computed(() => {
 const weeks = computed(() => {
   const maxCount = Math.max(0, ...dailyCounts.value.values())
   const result = []
+  const firstDay = yearStart.value
+  const lastDay = yearEnd.value
 
-  for (let weekStart = new Date(gridStart); weekStart <= today; weekStart.setUTCDate(weekStart.getUTCDate() + 7)) {
+  for (let weekStart = new Date(gridStart.value); weekStart <= lastDay; weekStart.setUTCDate(weekStart.getUTCDate() + 7)) {
     const days = []
     let month = ''
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
       const date = new Date(weekStart.getTime() + dayIndex * DAY_MS)
       const key = date.toISOString().slice(0, 10)
-      const inRange = date >= firstDay && date <= today
-      const count = inRange ? dailyCounts.value.get(key) || 0 : 0
+      const inRange = date >= firstDay && date <= lastDay
+      const isAvailable = inRange && date <= today
+      const count = isAvailable ? dailyCounts.value.get(key) || 0 : 0
       const level = count ? Math.min(4, Math.ceil((count / maxCount) * 4)) : 0
       const formattedDate = new Intl.DateTimeFormat('en', {
         month: 'short',
@@ -135,7 +149,7 @@ const weeks = computed(() => {
       days.push({
         date: key,
         color: colors[level],
-        label: inRange
+        label: isAvailable
           ? `${count} nether ${count === 1 ? 'entry' : 'entries'}, ${formattedDate}`
           : '',
         count,

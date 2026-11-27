@@ -15,7 +15,7 @@
             </div>
         </div>
         <p class="mt-3 text-center text-xs text-zinc-500">
-            Fastest to slowest, middle box represents 50% of runs
+            Fastest to slowest, middle box : 50% of runs, white line : median
         </p>
     </div>
 </template>
@@ -81,6 +81,7 @@ const rows = computed(() => {
 })
 
 const rowsWithDistribution = computed(() => rows.value.filter(row => row.count > 1))
+const hasDistribution = computed(() => rowsWithDistribution.value.length > 0)
 
 const chartData = computed(() => {
     const maxTime = Math.max(0, ...rowsWithDistribution.value.map(row => row.max))
@@ -186,9 +187,13 @@ const chartOptions = computed(() => ({
                 maxTicksLimit: 6,
                 stepSize: minuteTickStep.value,
                 font: { family: 'Outfit, sans-serif', size: 12 },
-                callback: value => formatMsToMinSec(value)
+                callback: value => !hasDistribution.value && value > 0 ? '' : formatMsToMinSec(value)
             },
-            grid: { color: 'rgba(255, 255, 255, 0.06)' },
+            grid: {
+                color: context => !hasDistribution.value && context.tick.value > 0
+                    ? 'transparent'
+                    : 'rgba(255, 255, 255, 0.06)'
+            },
             border: { display: false }
         },
         y: {

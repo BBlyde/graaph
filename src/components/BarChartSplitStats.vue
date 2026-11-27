@@ -95,6 +95,8 @@ const chartData = computed(() => ({
     ]
 }))
 
+const hasData = computed(() => chartData.value.datasets[0].data.some(value => Number.isFinite(value) && value > 0))
+
 const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -140,11 +142,20 @@ const chartOptions = {
         },
         y: {
             beginAtZero: true,
-            ticks: { color: '#71717a', precision: 0, font: { family: 'Outfit, sans-serif', size: 13 } },
+            ticks: {
+                color: '#71717a',
+                precision: 0,
+                font: { family: 'Outfit, sans-serif', size: 13 },
+                callback: value => !hasData.value && value > 0 ? '' : value
+            },
             afterFit: scale => {
                 scale.width = Math.max(scale.width, 48)
             },
-            grid: { color: 'rgba(255, 255, 255, 0.06)' },
+            grid: {
+                color: context => !hasData.value && context.tick.value > 0
+                    ? 'transparent'
+                    : 'rgba(255, 255, 255, 0.06)'
+            },
             border: { display: false }
         }
     }
