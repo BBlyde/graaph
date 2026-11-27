@@ -6,6 +6,7 @@
                 v-if="tooltip.visible"
                 :split-name="tooltip.splitName"
                 :split="tooltip.split"
+                :conversion="tooltip.conversion"
                 :x="tooltip.x"
                 :y="tooltip.y"
                 :align-right="tooltip.alignRight"
@@ -82,7 +83,7 @@ const minuteTickStep = computed(() => {
     return niceStep * magnitude * 60000
 })
 
-const tooltip = ref({ visible: false, x: 0, y: 0, splitName: '', split: null })
+const tooltip = ref({ visible: false, x: 0, y: 0, splitName: '', split: null, conversion: null })
 
 function formatMsToMinSec(ms) {
     if (!Number.isFinite(ms)) return ''
@@ -100,13 +101,24 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
 
     const { x, y } = dataPoint.element.tooltipPosition()
     const placeOnLeft = dataPoint.dataIndex === chart.data.labels.length - 1
+    const splitIndex = dataPoint.dataIndex
+    const splitStats = props.advancedData.data[splitKeys[splitIndex]]
+    const previousSplitStats = splitIndex > 0
+        ? props.advancedData.data[splitKeys[splitIndex - 1]]
+        : null
     tooltip.value = {
         visible: true,
         x: x + (placeOnLeft ? -8 : 8),
         y,
         alignRight: placeOnLeft,
         splitName: dataPoint.label,
-        split: props.advancedData.data[dataPoint.label.toLowerCase()]
+        split: splitStats,
+        conversion: splitIndex > 0 ? {
+            rate: previousSplitStats.counter > 0
+                ? splitStats.counter / previousSplitStats.counter * 100
+                : undefined,
+            rank: splitStats.lbConversion
+        } : null
     }
 }
 

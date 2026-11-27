@@ -144,7 +144,7 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
-import { fetchDataPacemanApi, fetchPlayerRunHistory, getPlayerDataByDay, trimAllDataByPlayerId, getDataLeaderboardByPlayer, getMinecraftProfileName, getPlayerStatsForAllPeriods, uniqueSplitTimeAllPeriods } from '@/services/playerService.js'
+import { fetchDataPacemanApi, fetchPlayerRunHistory, getPlayerDataByDay, getPlayerCompletionStatsByDay, getPlayerCompletionConversionRank, trimAllDataByPlayerId, getDataLeaderboardByPlayer, getMinecraftProfileName, getPlayerStatsForAllPeriods, uniqueSplitTimeAllPeriods } from '@/services/playerService.js'
 import BarChartSplitStats from '@/components/BarChartSplitStats.vue'
 import BarChartAvgFastestSplit from '@/components/BarChartAvgFastestSplit.vue'
 import BarChartAvgSplit from '@/components/BarChartAvgSplit.vue'
@@ -193,7 +193,21 @@ let cachedPlayerId = ''
 const getPlayerDataForPeriod = (playerData, id, selectedDay) => {
   const periodData = getPlayerDataByDay(playerData, selectedDay, id)
   const playerDataTrimmed = trimAllDataByPlayerId(periodData, id)
-  return playerDataTrimmed
+  const requestedNickname = id.trim().toLowerCase()
+  const playerRuns = playerData.filter(run =>
+    typeof run?.nickname === 'string' &&
+    run.nickname.trim().toLowerCase() === requestedNickname
+  )
+
+  const completionStats = {
+    ...getPlayerCompletionStatsByDay(playerRuns, selectedDay),
+    lbConversion: getPlayerCompletionConversionRank(playerData, selectedDay, id)
+  }
+  return {
+    ...playerDataTrimmed,
+    completionCount: completionStats.counter,
+    completionStats
+  }
 }
 
 const fetchPlayer = async (id, day) => {
@@ -328,7 +342,9 @@ function changeDay(newDay) {
     const playerDataTrimmed = getPlayerDataForPeriod(cachedPlayerData, id, day.value)
     advancedData.value = {
       ...advancedData.value,
-      data: playerDataTrimmed.data
+      data: playerDataTrimmed.data,
+      completionCount: playerDataTrimmed.completionCount,
+      completionStats: playerDataTrimmed.completionStats
     }
     return
   }

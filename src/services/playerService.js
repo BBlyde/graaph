@@ -496,7 +496,72 @@ export function getPlayerDataByDay(data, day, nickname = '') {
   const rankedAvg = buildTargetRankings('avg', 'time')
   const rankedFastest = buildTargetRankings('fastest', 'time')
   const rankedCounter = buildTargetRankings('counter', 'number', true)
-  return [playersSplit, rankedAvg, rankedFastest, rankedCounter]
+  const getConversion = (stats, splitIndex) => {
+    const previousSplit = splits[splitIndex - 1]
+    const previousCounter = stats[previousSplit].counter
+    return previousCounter > 0
+      ? stats[splits[splitIndex]].counter / previousCounter
+      : undefined
+  }
+  const rankedConversion = Object.fromEntries(splits.map((split, splitIndex) => {
+    if (splitIndex === 0) return [split, []]
+
+    const conversionForSplit = stats => getConversion(stats, splitIndex)
+    const entries = Object.entries(playersStats)
+      .filter(([, stats]) => Number.isFinite(conversionForSplit(stats)))
+    const position = getTargetRank(entries, requestedPlayer, conversionForSplit, true)
+    const value = playersStats[requestedPlayer]
+      ? conversionForSplit(playersStats[requestedPlayer])
+      : undefined
+    return [split, position === undefined
+      ? []
+      : [{ name: requestedPlayer, split, conversion: value, position }]
+    ]
+  }))
+  return [playersSplit, rankedAvg, rankedFastest, rankedCounter, rankedConversion]
+}
+
+export function getPlayerCompletionStatsByDay(data, day, now = Date.now()) {
+  const cutoff = now - 24 * 60 * 60 * 1000 * day
+  const finishTimes = data
+    .filter(run => {
+      const timestamp = Date.parse(run?.insertTime)
+      return Number.isFinite(timestamp) &&
+        timestamp >= cutoff &&
+        Number.isFinite(run?.finish) &&
+        run.finish > 0
+    })
+    .map(run => run.finish)
+
+  return {
+    counter: finishTimes.length,
+    fastest: finishTimes.length ? Math.min(...finishTimes) : undefined,
+    avg: finishTimes.length
+      ? finishTimes.reduce((total, time) => total + time, 0) / finishTimes.length
+      : undefined
+  }
+}
+
+export function getPlayerCompletionConversionRank(data, day, nickname, now = Date.now()) {
+  const cutoff = now - 24 * 60 * 60 * 1000 * day
+  const requestedPlayer = nickname.trim().toLowerCase()
+  const playersStats = {}
+
+  data.forEach(run => {
+    if (typeof run?.nickname !== 'string') return
+    const timestamp = Date.parse(run.insertTime)
+    if (!Number.isFinite(timestamp) || timestamp < cutoff) return
+
+    const player = run.nickname.trim().toLowerCase()
+    const stats = playersStats[player] ??= { credits: 0, completions: 0 }
+    if (Number.isFinite(run.finish) && run.finish > 0) stats.completions++
+    if ((run.nether > 120000 || run.elytra > 120000) && run.credits) stats.credits++
+  })
+
+  const conversionRate = stats => stats.completions / stats.credits
+  const entries = Object.entries(playersStats)
+    .filter(([, stats]) => stats.credits > 0)
+  return getTargetRank(entries, requestedPlayer, conversionRate, true)
 }
 
 /* Trimming the advanced datas */
@@ -517,6 +582,7 @@ export function trimAllDataByPlayerId(datas, id) {
   const avgPositions = getPlayerPositions(datas[1])
   const fastestPositions = getPlayerPositions(datas[2])
   const counterPositions = getPlayerPositions(datas[3])
+  const conversionPositions = datas[4] ? getPlayerPositions(datas[4]) : {}
 
   const dataPlayer = []
   // Pathing the raw datas
@@ -530,6 +596,7 @@ export function trimAllDataByPlayerId(datas, id) {
         if (avgPositions[split] !== undefined) splitData.lbAvg = avgPositions[split]
         if (fastestPositions[split] !== undefined) splitData.lbFastest = fastestPositions[split]
         if (counterPositions[split] !== undefined) splitData.lbCounter = counterPositions[split]
+        if (conversionPositions[split] !== undefined) splitData.lbConversion = conversionPositions[split]
       }
     }
   }
@@ -667,7 +734,7 @@ export function getPlayerStatsForAllPeriods(data, nickname) {
       { field: 'counter', rank: 'lbCounter', descending: true }
     ]
 
-    segments.forEach(segment => {
+    segments.forEach((segment, index) => {
       const playerSegmentStats = playerStats[requestedPlayer]?.segments[segment]
       if (playerSegmentStats) {
         rankings.forEach(({ field, rank, descending }) => {
@@ -680,6 +747,24 @@ export function getPlayerStatsForAllPeriods(data, nickname) {
           )
           if (position !== undefined) playerSegmentStats[rank] = position
         })
+
+        if (index > 0) {
+          const previousSegment = segments[index - 1]
+          const getConversion = stats => {
+            const previousCounter = stats.segments[previousSegment].counter
+            return previousCounter > 0
+              ? stats.segments[segment].counter / previousCounter
+              : undefined
+          }
+          const position = getTargetRank(
+            playerEntries,
+            requestedPlayer,
+            getConversion,
+            true,
+            Number.isFinite
+          )
+          if (position !== undefined) playerSegmentStats.lbConversion = position
+        }
 
         segmentStatsByPeriod[segment][key] = {
           ...playerSegmentStats,

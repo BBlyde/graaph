@@ -5,6 +5,7 @@
             v-if="tooltip.visible"
             :split-name="tooltip.splitName"
             :split="tooltip.split"
+            :conversion="tooltip.conversion"
             :x="tooltip.x"
             :y="tooltip.y"
             :align-right="tooltip.alignRight"
@@ -18,14 +19,16 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Bar } from 'vue-chartjs'
-import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
+import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, LineController, LineElement, PointElement } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import PlayerStatsTooltip from '@/components/PlayerStatsTooltip.vue'
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ChartDataLabels)
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, LineController, LineElement, PointElement, ChartDataLabels)
 
 Tooltip.positioners.barTopAware = function (items) {
-    const activeItem = items[0]
+    const activeItem = items.find(item =>
+        this.chart.data.datasets[item.datasetIndex]?.label === 'Completion hitbox'
+    ) ?? items[0]
     const element = activeItem?.element
     if (!element) return false
 
@@ -55,11 +58,13 @@ const tooltip = ref({
     split: null,
     alignRight: false,
     alignCenter: false,
-    placeBelow: false
+    placeBelow: false,
+    conversion: null
 })
 
 function renderTooltip({ chart, tooltip: chartTooltip }) {
-    const dataPoint = chartTooltip.dataPoints?.[0]
+    const dataPoint = chartTooltip.dataPoints?.find(item => item.dataset.label === 'Completion hitbox')
+        ?? chartTooltip.dataPoints?.[0]
     if (!chartTooltip.opacity || !dataPoint) {
         tooltip.value = { ...tooltip.value, visible: false }
         return
@@ -69,6 +74,14 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
     const isFirstBar = dataPoint.dataIndex === 0
     const isLastBar = dataPoint.dataIndex === chart.data.labels.length - 1
     const hasRoomAbove = y - chart.chartArea.top >= 90
+    const isCompletion = dataPoint.label === 'Completions'
+    const splitIndex = splitKeys.indexOf(dataPoint.label.toLowerCase())
+    const splitStats = isCompletion ? props.advancedData.completionStats : props.advancedData.data[dataPoint.label.toLowerCase()]
+    const previousSplitStats = isCompletion
+        ? props.advancedData.data.credits
+        : splitIndex > 0
+            ? props.advancedData.data[splitKeys[splitIndex - 1]]
+            : null
     tooltip.value = {
         visible: true,
         x,
@@ -77,21 +90,45 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
         alignCenter: !isFirstBar && !isLastBar,
         placeBelow: !hasRoomAbove,
         splitName: dataPoint.label,
-        split: props.advancedData.data[dataPoint.label.toLowerCase()]
+        split: splitStats,
+        conversion: isCompletion || splitIndex > 0 ? {
+            rate: previousSplitStats?.counter > 0
+                ? splitStats.counter / previousSplitStats.counter * 100
+                : undefined,
+            rank: splitStats.lbConversion
+        } : null
     }
 }
 
 const splits = ['Nether', 'Bastion', 'Fortress', 'Stronghold', 'End', 'Elytra', 'Credits']
 const splitKeys = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+const splitColors = ['#512020', '#2d2b36', '#37181d', '#686b68', '#A5AB7D', '#a170a0', '#030b13']
+const hasCompletions = computed(() => Number.isFinite(props.advancedData.completionCount) && props.advancedData.completionCount > 0)
 const chartData = computed(() => ({
-    labels: splits,
+    labels: hasCompletions.value ? [...splits, 'Completions'] : splits,
     datasets: [
         {
-            data: splitKeys.map(split => props.advancedData.data[split].counter),
-            backgroundColor: ['#512020', '#2d2b36', '#37181d', '#686b68', '#A5AB7D', '#a170a0', '#030b13'],
+            data: [
+                ...splitKeys.map(split => props.advancedData.data[split].counter),
+                ...(hasCompletions.value ? [props.advancedData.completionCount] : [])
+            ],
+            backgroundColor: hasCompletions.value ? [...splitColors, '#27AE60'] : splitColors,
             borderWidth: 0,
             barThickness: 32
         },
+        ...(hasCompletions.value ? [{
+            type: 'line',
+            label: 'Completion hitbox',
+            data: [...splitKeys.map(() => null), props.advancedData.completionCount],
+            showLine: false,
+            pointRadius: 1,
+            pointHoverRadius: 1,
+            pointHitRadius: 24,
+            pointBackgroundColor: 'rgba(0, 0, 0, 0)',
+            pointBorderColor: 'rgba(0, 0, 0, 0)',
+            borderWidth: 0,
+            datalabels: { display: false }
+        }] : [])
     ]
 }))
 

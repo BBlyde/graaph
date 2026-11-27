@@ -4,11 +4,55 @@ import {
   fetchDataPacemanApi,
   fetchPlayerProgression,
   fetchPlayerRunHistory,
+  getPlayerCompletionStatsByDay,
+  getPlayerCompletionConversionRank,
   getPlayerDataByDay,
+  trimAllDataByPlayerId,
   getPlayerStatsForAllPeriods,
   getPlayerSplitStatsForAllPeriods,
   getPlayerSegmentTimesForAllPeriods
 } from '../src/services/playerService.js'
+
+test('completion count includes only completed runs in the selected period', () => {
+  const now = Date.parse('2025-01-31T12:00:00Z')
+  const runs = [
+    { insertTime: '2025-01-31T11:00:00Z', finish: 8_280_000 },
+    { insertTime: '2025-01-31T10:00:00Z', finish: null },
+    { insertTime: '2025-01-29T11:00:00Z', finish: 8_100_000 }
+  ]
+
+  assert.deepEqual(getPlayerCompletionStatsByDay(runs, 1, now), {
+    counter: 1,
+    fastest: 8_280_000,
+    avg: 8_280_000
+  })
+  assert.deepEqual(getPlayerCompletionStatsByDay(runs, 7, now), {
+    counter: 2,
+    fastest: 8_100_000,
+    avg: 8_190_000
+  })
+})
+
+test('completion conversion rank compares completions with credit splits', () => {
+  const now = Date.now()
+  const insertTime = new Date(now - 60_000).toISOString()
+  const completedRuns = (nickname, count, completions) =>
+    Array.from({ length: count }, (_, index) => ({
+      nickname,
+      insertTime,
+      nether: 180000,
+      credits: 500000,
+      ...(index < completions ? { finish: 600000 } : {})
+    }))
+  const runs = [
+    ...completedRuns('Alpha', 4, 3),
+    ...completedRuns('Target', 2, 2),
+    ...completedRuns('Gamma', 4, 2)
+  ]
+
+  assert.equal(getPlayerCompletionConversionRank(runs, 1, 'target', now), 1)
+  assert.equal(getPlayerCompletionConversionRank(runs, 1, 'unknown', now), undefined)
+})
 
 test('global Paceman data requests are shared and cached', async t => {
   let fetchCount = 0
@@ -79,6 +123,24 @@ test('period rankings preserve positions and insertion order for ties', () => {
   assert.equal(counterRank, 2)
 })
 
+test('split conversion ranks compare each split count with the previous split count', () => {
+  const insertTime = new Date().toISOString()
+  const runs = [
+    ...Array.from({ length: 4 }, () => ({ nickname: 'Alpha', insertTime, nether: 180000 })),
+    ...Array.from({ length: 3 }, () => ({ nickname: 'Alpha', insertTime, nether: 180000, bastion: 300000 })),
+    ...Array.from({ length: 2 }, () => ({ nickname: 'Target', insertTime, nether: 180000, bastion: 300000 })),
+    ...Array.from({ length: 4 }, () => ({ nickname: 'Gamma', insertTime, nether: 180000 })),
+    ...Array.from({ length: 2 }, () => ({ nickname: 'Gamma', insertTime, nether: 180000, bastion: 300000 }))
+  ]
+
+  const playerData = getPlayerDataByDay(runs, 9999, 'target')
+  const advancedData = trimAllDataByPlayerId(playerData, 'target')
+
+  assert.equal(advancedData.data.bastion.counter / advancedData.data.nether.counter, 1)
+  assert.equal(advancedData.data.bastion.lbConversion, 1)
+  assert.equal(advancedData.data.nether.lbConversion, undefined)
+})
+
 test('segment rankings preserve positions and insertion order for ties', () => {
   const insertTime = new Date().toISOString()
   const runs = [
@@ -92,6 +154,23 @@ test('segment rankings preserve positions and insertion order for ties', () => {
   assert.equal(stats.lbAvg, 3)
   assert.equal(stats.lbFastest, 3)
   assert.equal(stats.lbCounter, 2)
+})
+
+test('split average conversion ranks compare segment counts with the previous segment', () => {
+  const insertTime = new Date().toISOString()
+  const runs = [
+    ...Array.from({ length: 4 }, () => ({ nickname: 'Alpha', insertTime, nether: 180000 })),
+    ...Array.from({ length: 3 }, () => ({ nickname: 'Alpha', insertTime, nether: 180000, bastion: 300000 })),
+    ...Array.from({ length: 2 }, () => ({ nickname: 'Target', insertTime, nether: 180000, bastion: 300000 })),
+    ...Array.from({ length: 4 }, () => ({ nickname: 'Gamma', insertTime, nether: 180000 })),
+    ...Array.from({ length: 2 }, () => ({ nickname: 'Gamma', insertTime, nether: 180000, bastion: 300000 }))
+  ]
+
+  const stats = getPlayerSplitStatsForAllPeriods(runs, 'target')
+
+  assert.equal(stats.nether.avgAT.counter / stats.overworld.avgAT.counter, 1)
+  assert.equal(stats.nether.avgAT.lbConversion, 1)
+  assert.equal(stats.overworld.avgAT.lbConversion, undefined)
 })
 
 test('combined period stats retain each period’s averages and segment runs', () => {

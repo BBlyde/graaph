@@ -13,6 +13,7 @@
         >
             <div v-for="(line, index) in tooltip.lines" :key="index" class="mb-2 whitespace-nowrap last:mb-0">
                 <div>{{ line.label }}: <span class="text-[#27AE60]">{{ line.counter || 'No data' }}</span> runs ({{ formatRank(line.lbCounter) }})</div>
+                <div v-if="line.conversion">Conversion: <span class="text-[#27AE60]">{{ formatConversion(line.conversion.rate) }}</span> ({{ formatRank(line.conversion.rank) }})</div>
                 <div>Fastest: <span class="text-[#27AE60]">{{ line.fastest || 'No data' }}</span> ({{ formatRank(line.lbFastest) }})</div>
                 <div>Average: <span class="text-[#27AE60]">{{ line.time || 'No data' }}</span> ({{ formatRank(line.lbAvg) }})</div>
             </div>
@@ -76,6 +77,10 @@ function formatRank(rank) {
     return rank == null ? '—' : `#${rank}`
 }
 
+function formatConversion(rate) {
+    return Number.isFinite(rate) ? `${rate.toFixed(1)}%` : '—'
+}
+
 const tooltip = ref({ visible: false, x: 0, y: 0, placeBelow: false, lines: [] })
 const segmentKeys = ['overworld', 'nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra']
 const periodKeys = ['avg1d', 'avg7d', 'avg30d', 'avgAT']
@@ -102,12 +107,22 @@ function renderTooltip({ chart, tooltip: chartTooltip }) {
         lines: dataPoints.map(dataPoint => {
             const segment = segmentKeys[dataPoint.datasetIndex]
             const period = periodKeys[dataPoint.dataIndex]
+            const segmentIndex = segmentKeys.indexOf(segment)
             const stats = props.segmentStats[segment]?.[period] ?? {}
+            const previousSegmentStats = segmentIndex > 0
+                ? props.segmentStats[segmentKeys[segmentIndex - 1]]?.[period]
+                : null
 
             return {
                 label: dataPoint.dataset.label,
                 time: formatMsToMinSec(dataPoint.raw),
                 counter: stats.counter,
+                conversion: segmentIndex > 0 ? {
+                    rate: previousSegmentStats?.counter > 0
+                        ? stats.counter / previousSegmentStats.counter * 100
+                        : undefined,
+                    rank: stats.lbConversion
+                } : null,
                 fastest: formatMsToMinSec(stats.fastest),
                 lbCounter: stats.lbCounter,
                 lbFastest: stats.lbFastest,

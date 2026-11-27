@@ -7,6 +7,9 @@
         <div>
             {{ props.splitName }}: <span class="text-[#27AE60]">{{ props.split.counter }}</span> runs ({{ formatRank(props.split.lbCounter) }})
         </div>
+        <div v-if="props.conversion">
+            Conversion: <span class="text-[#27AE60]">{{ formatConversion(props.conversion.rate) }}</span> ({{ formatRank(props.conversion.rank) }})
+        </div>
         <div>
             Fastest: <span class="text-[#27AE60]">{{ formatMsToMinSec(props.split.fastest) }}</span> ({{ formatRank(props.split.lbFastest) }})
         </div>
@@ -27,6 +30,10 @@ const props = defineProps({
     split: {
         type: Object,
         required: true
+    },
+    conversion: {
+        type: Object,
+        default: null
     },
     x: {
         type: Number,
@@ -71,10 +78,17 @@ function formatRank(rank) {
     return rank == null ? '—' : `#${rank}`
 }
 
+function formatConversion(rate) {
+    return Number.isFinite(rate) ? `${rate.toFixed(1)}%` : '—'
+}
+
 function formatMsToMinSec(ms) {
     if (!Number.isFinite(ms)) return ''
-    const minutes = Math.floor(ms / 60000)
-    const seconds = Math.floor((ms % 60000) / 1000)
+    const totalSeconds = Math.floor(ms / 1000)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    if (hours > 0) return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 </script>
