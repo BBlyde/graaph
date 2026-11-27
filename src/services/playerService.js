@@ -329,11 +329,12 @@ async function fetchLeaderboardSearchResults(nickname) {
   return data.results
 }
 
-export async function getAllLeaderboardData(board = 'rsg') {
-  if (!['rsg', 'thunderless'].includes(board)) {
+export async function getAllLeaderboardData(board = 'aa') {
+  if (!['aa', 'thunderless'].includes(board)) {
     throw new Error('Invalid leaderboard board')
   }
-  const response = await fetch(`/secure-api/api/leaderboard/all?cat=aa&board=${encodeURIComponent(board)}`)
+  const apiBoard = board === 'aa' ? 'rsg' : board
+  const response = await fetch(`/secure-api/api/leaderboard/all?cat=aa&board=${encodeURIComponent(apiBoard)}`)
   if (!response.ok) throw new Error(`Leaderboard API error (${response.status})`)
   const data = await response.json()
   if (!Array.isArray(data.runs)) throw new Error('Invalid leaderboard API response')

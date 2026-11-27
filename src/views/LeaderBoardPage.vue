@@ -2,8 +2,7 @@
   <section class="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
     <header class="mx-auto mb-6 flex max-w-3xl flex-col justify-between gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center">
       <div>
-        <h1 class="text-2xl font-bold text-white sm:text-3xl">AA / {{ selectedBoard === 'rsg' ? 'RSG' : 'Thunderless' }} Leaderboard</h1>
-        <p class="mt-2 text-sm text-zinc-400">Full ranking from Totorewa's leaderboard API.</p>
+        <h1 class="text-2xl font-bold text-white sm:text-3xl">{{ selectedBoard === 'aa' ? 'AA' : 'Thunderless' }} Leaderboard</h1>
       </div>
       <div class="flex justify-end">
         <div class="inline-flex border border-white/10 p-0.5" role="group" aria-label="Leaderboard board">
@@ -23,7 +22,7 @@
       </div>
     </header>
 
-    <div v-if="loading" class="mx-auto max-w-3xl border border-white/10 border-l-2 border-l-primarry bg-[#151517] px-5 py-4 text-sm text-zinc-300" role="status">
+    <div v-if="loading" class="mx-auto max-w-3xl border border-primarry bg-[#151517] px-5 py-4 text-sm text-zinc-300" role="status">
       Loading leaderboard...
     </div>
     <div v-else-if="error" class="border border-red-900/60 border-l-2 border-l-red-500 bg-[#151517] px-5 py-4 text-sm text-red-200" role="alert">
@@ -83,11 +82,12 @@ const router = useRouter()
 const results = ref([])
 const loading = ref(false)
 const error = ref('')
-const selectedBoard = ref('rsg')
+const selectedBoard = ref('aa')
 const leaderboardBoards = [
-  { value: 'rsg', label: 'RSG' },
+  { value: 'aa', label: 'AA' },
   { value: 'thunderless', label: 'Thunderless' }
 ]
+const leaderboardCache = new Map()
 let latestLeaderboardRequest = 0
 
 function openPlayerStats(result) {
@@ -103,11 +103,19 @@ function selectBoard(board) {
 
 async function loadLeaderboard(board = selectedBoard.value) {
   const request = ++latestLeaderboardRequest
-  loading.value = true
   error.value = ''
+
+  if (leaderboardCache.has(board)) {
+    results.value = leaderboardCache.get(board)
+    loading.value = false
+    return
+  }
+
+  loading.value = true
 
   try {
     const leaderboard = await getAllLeaderboardData(board)
+    leaderboardCache.set(board, leaderboard)
     if (request === latestLeaderboardRequest) results.value = leaderboard
   } catch (e) {
     console.error('Unable to load leaderboard:', e)
