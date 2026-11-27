@@ -1,12 +1,16 @@
 <template>
-    <section class="flex min-h-[calc(100vh-5rem)] items-center justify-center px-5 py-16">
-        <div class="relative w-full max-w-xl" @focusin="isSearchFocused = true" @focusout="handleSearchFocusOut">
-            <p class="mb-4 text-center text-lg text-zinc-400">
+    <section class="flex min-h-[calc(100vh-5rem)] items-start justify-center px-5 py-12 sm:py-16">
+        <div class="relative w-full max-w-2xl" @focusin="isSearchFocused = true" @focusout="handleSearchFocusOut">
+            <img src="@/assets/logo_only.png" alt="Graaph" class="mx-auto mb-7 h-20 w-auto sm:h-24" />
+            <h1 class="text-center text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                PLAYER STATS
+            </h1>
+            <p class="mt-3 text-center text-sm text-zinc-400 sm:text-base">
                 Enter a runner name to explore their statistics
             </p>
-            <form class="w-full" @submit.prevent="goToPlayer">
+            <form class="mt-8 w-full" @submit.prevent="goToPlayer">
                 <label for="player-username" class="sr-only">Minecraft username</label>
-                <div class="flex border border-white/15 bg-[#151517] p-1.5 transition focus-within:border-primarry/70">
+                <div class="flex border border-white/15 bg-[#151517] p-1.5 transition-colors focus-within:border-primarry">
                     <div class="flex min-w-0 flex-1 items-center gap-3 pl-3 sm:pl-4">
                         <svg aria-hidden="true" class="h-5 w-5 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none">
                             <circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7" />
@@ -22,7 +26,7 @@
                         />
                     </div>
                     <button
-                        class="inline-flex h-12 shrink-0 items-center gap-2 bg-primarry px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+                        class="inline-flex h-12 shrink-0 items-center gap-2 bg-primarry px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primarry disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
                         :style="{ '--hover-color': 'var(--color-primarry)' }"
                         :disabled="!playerId.trim()"
                         type="submit"
