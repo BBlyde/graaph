@@ -13,9 +13,9 @@
         >
             <div v-for="(line, index) in tooltip.lines" :key="index" class="mb-2 whitespace-nowrap last:mb-0">
                 <div>{{ line.label }}: <span class="text-[#27AE60]">{{ line.counter || 'No data' }}</span> runs ({{ formatRank(line.lbCounter) }})</div>
-                <div v-if="line.conversion">Conversion: <span class="text-[#27AE60]">{{ formatConversion(line.conversion.rate) }}</span> ({{ formatRank(line.conversion.rank) }})</div>
-                <div>Fastest: <span class="text-[#27AE60]">{{ line.fastest || 'No data' }}</span> ({{ formatRank(line.lbFastest) }})</div>
                 <div>Average: <span class="text-[#27AE60]">{{ line.time || 'No data' }}</span> ({{ formatRank(line.lbAvg) }})</div>
+                <div>Fastest: <span class="text-[#27AE60]">{{ line.fastest || 'No data' }}</span> ({{ formatRank(line.lbFastest) }})</div>
+                <div v-if="line.conversion">Conversion: <span class="text-[#27AE60]">{{ formatConversion(line.conversion.rate) }}</span> ({{ formatRank(line.conversion.rank) }})</div>
             </div>
         </div>
     </div>

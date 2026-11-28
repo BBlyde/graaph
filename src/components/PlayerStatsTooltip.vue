@@ -7,14 +7,14 @@
         <div>
             {{ props.splitName }}: <span class="text-[#27AE60]">{{ props.split.counter }}</span> runs ({{ formatRank(props.split.lbCounter) }})
         </div>
-        <div v-if="props.conversion">
-            Conversion: <span class="text-[#27AE60]">{{ formatConversion(props.conversion.rate) }}</span> ({{ formatRank(props.conversion.rank) }})
+        <div>
+            Average: <span class="text-[#27AE60]">{{ formatMsToMinSec(props.split.avg) }}</span> ({{ formatRank(props.split.lbAvg) }})
         </div>
         <div>
             Fastest: <span class="text-[#27AE60]">{{ formatMsToMinSec(props.split.fastest) }}</span> ({{ formatRank(props.split.lbFastest) }})
         </div>
-        <div>
-            Average: <span class="text-[#27AE60]">{{ formatMsToMinSec(props.split.avg) }}</span> ({{ formatRank(props.split.lbAvg) }})
+        <div v-if="props.conversion">
+            Conversion: <span class="text-[#27AE60]">{{ formatConversion(props.conversion.rate) }}</span> ({{ formatRank(props.conversion.rank) }})
         </div>
     </div>
 </template>

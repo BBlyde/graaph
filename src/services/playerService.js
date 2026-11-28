@@ -1,5 +1,3 @@
-////// GENERAL FUNCTIONS
-
 const progressionSheetUrl = 'https://docs.google.com/spreadsheets/d/107ijqjELTQQ29KW4phUmtvYFTX9-pfHsjb18TKoWACk/gviz/tq?tqx=out:csv&gid=735237004'
 const responseCache = new Map()
 const responseCacheTtlMs = 5 * 60_000
