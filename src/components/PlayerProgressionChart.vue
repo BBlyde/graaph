@@ -6,10 +6,10 @@
     <p v-else-if="error" class="flex h-72 items-center justify-center text-sm text-red-200" role="alert">
       Unable to load the progression sheet.
     </p>
-    <p v-else-if="!records.length" class="flex h-72 items-center justify-center text-sm text-zinc-400">
-      No run history in the sheet for this player.
-    </p>
     <div v-else class="relative h-72 sm:h-96">
+      <p v-if="!records.length" class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-zinc-500">
+        No run history
+      </p>
       <div
         v-if="activeInterval"
         class="absolute inset-0 pointer-events-none"
@@ -113,6 +113,7 @@ const chartData = computed(() => {
   }
 
   return {
+    labels: [],
     datasets: [{
       data: points,
       borderColor: '#cbd5e1',
@@ -131,12 +132,13 @@ const chartData = computed(() => {
 
 const chartOptions = computed(() => {
   const times = props.records.map(record => record.time)
-  const fastest = Math.min(...times)
-  const slowest = Math.max(...times)
-  const padding = Math.max((slowest - fastest) * 0.12, fastest * 0.04)
   const hour = 60 * 60 * 1000
-  const minTime = Math.max(0, Math.floor((fastest - padding) / hour) * hour)
-  const maxTime = Math.max(minTime + hour, Math.ceil((slowest + padding) / hour) * hour)
+  const hasRecords = times.length > 0
+  const fastest = hasRecords ? Math.min(...times) : 0
+  const slowest = hasRecords ? Math.max(...times) : 0
+  const padding = hasRecords ? Math.max((slowest - fastest) * 0.12, fastest * 0.04) : 0
+  const minTime = hasRecords ? Math.max(0, Math.floor((fastest - padding) / hour) * hour) : 0
+  const maxTime = hasRecords ? Math.max(minTime + hour, Math.ceil((slowest + padding) / hour) * hour) : hour
   let hourStep = Math.max(1, Math.ceil((maxTime - minTime) / hour / 6)) * hour
   while (Math.ceil(maxTime / hourStep) - Math.floor(minTime / hourStep) > 6) {
     hourStep += hour
@@ -150,13 +152,13 @@ const chartOptions = computed(() => {
     layout: { padding: { top: 12, right: 12 } },
     plugins: {
       legend: { display: false },
-      datalabels: { display: false },
+      datalabels: false,
       tooltip: { enabled: false }
     },
     scales: {
       x: {
         type: 'linear',
-        min: props.records[0]?.timestamp,
+        min: props.records[0]?.timestamp ?? Date.now() - 365 * 24 * hour,
         max: Math.max(Date.now(), props.records[props.records.length - 1]?.timestamp ?? 0),
         ticks: {
           color: '#71717a',

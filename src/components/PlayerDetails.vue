@@ -39,7 +39,7 @@
       <p class="mt-1 text-xs text-zinc-500">
         <span class="font-medium text-zinc-400">Last run : </span>
         <time v-if="lastRun" :datetime="lastRun.toISOString()">{{ relativeLastRun }}</time>
-        <span v-else>Not available</span>
+        <span v-else>not available</span>
       </p>
     </div>
   </div>

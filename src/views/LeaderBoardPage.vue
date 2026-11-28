@@ -41,18 +41,39 @@
           <tr
             v-for="(result, index) in results"
             :key="index"
-            role="link"
-            tabindex="0"
-            :aria-label="`Open stats for ${result.players.join(', ')}`"
-            class="cursor-pointer text-zinc-200 transition-colors hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primarry"
+            class="text-zinc-200 transition-colors hover:bg-white/[0.06]"
             :class="index % 2 === 0 ? 'bg-white/[0.025]' : 'bg-transparent'"
-            @click="openPlayerStats(result)"
-            @keydown.enter.prevent="openPlayerStats(result)"
-            @keydown.space.prevent="openPlayerStats(result)"
           >
-            <td class="py-3 pl-4 pr-2 font-semibold" style="color: var(--color-primarry)">{{ result.place }}</td>
+            <td class="py-3 pl-4 pr-2 font-semibold" style="color: var(--color-primarry)">
+              <router-link
+                v-if="playerStatsRoute(result)"
+                :to="playerStatsRoute(result)"
+                class="-mx-4 -my-3 block px-4 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primarry"
+                :aria-label="`Open stats for ${result.players.join(', ')}`"
+              >
+                {{ result.place }}
+              </router-link>
+              <span v-else>{{ result.place }}</span>
+            </td>
             <td class="px-2 py-3">
-              <span v-for="(player, playerIndex) in result.players" :key="player" class="inline-flex items-center gap-2">
+              <router-link
+                v-if="playerStatsRoute(result)"
+                :to="playerStatsRoute(result)"
+                class="-mx-2 -my-3 flex min-h-14 w-full items-center px-2 py-3"
+                tabindex="-1"
+                aria-hidden="true"
+              >
+                <span v-for="(player, playerIndex) in result.players" :key="player" class="inline-flex items-center gap-2">
+                  <span v-if="playerIndex > 0" class="mx-1 text-zinc-500">,</span>
+                  <img
+                    :src="getRunnerHeadUrl(player)"
+                    :alt="`${player} runner head`"
+                    class="h-8 w-8 shrink-0 border border-white/10 object-cover"
+                  />
+                  <span class="font-medium text-white">{{ player }}</span>
+                </span>
+              </router-link>
+              <span v-else v-for="(player, playerIndex) in result.players" :key="player" class="inline-flex items-center gap-2">
                 <span v-if="playerIndex > 0" class="mx-1 text-zinc-500">,</span>
                 <img
                   :src="getRunnerHeadUrl(player)"
@@ -62,7 +83,18 @@
                 <span class="font-medium text-white">{{ player }}</span>
               </span>
             </td>
-            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" style="color: var(--color-primarry)">{{ result.completionTime }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums" style="color: var(--color-primarry)">
+              <router-link
+                v-if="playerStatsRoute(result)"
+                :to="playerStatsRoute(result)"
+                class="-mx-4 -my-3 block px-4 py-3"
+                tabindex="-1"
+                aria-hidden="true"
+              >
+                {{ result.completionTime }}
+              </router-link>
+              <span v-else>{{ result.completionTime }}</span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -75,10 +107,8 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { getAllLeaderboardData, getRunnerHeadUrl } from '@/services/playerService.js'
 
-const router = useRouter()
 const results = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -90,9 +120,9 @@ const leaderboardBoards = [
 const leaderboardCache = new Map()
 let latestLeaderboardRequest = 0
 
-function openPlayerStats(result) {
+function playerStatsRoute(result) {
   const player = result.players[0]
-  if (player) router.push({ name: 'PlayerStats', params: { id: player } })
+  return player ? { name: 'PlayerStats', params: { id: player } } : null
 }
 
 function selectBoard(board) {

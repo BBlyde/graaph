@@ -1,13 +1,6 @@
 <template>
   <section class="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
-    <div v-if="loading" class="border border-primarry bg-[#151517] px-5 py-4 text-sm text-zinc-300">
-      LOADING GRAAPHS..
-    </div>
-    <div v-else-if="error && !advancedData" class="border border-red-500 bg-[#151517] px-5 py-4 text-sm text-red-200"
-      role="alert">
-      {{ error }}
-    </div>
-    <div v-else-if="advancedData" class="space-y-6">
+    <div class="space-y-6">
       <div class="flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <PlayerDetails :advancedData="advancedData" />
         <div class="flex items-center gap-3">
@@ -40,7 +33,9 @@
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
           <div class="mb-4 border-b border-white/10 pb-3">
             <h2 class="text-sm font-semibold text-zinc-100">SPLIT COUNTERS</h2>
-            <p class="mt-1 text-xs text-zinc-500">Number of runs per split by period</p>
+            <p class="mt-1 text-xs text-zinc-500">
+              Number of runs per split by period
+            </p>
           </div>
           <BarChartSplitStats :key="selectedDays" :advancedData="advancedData" />
         </article>
@@ -71,7 +66,7 @@
             <h2 class="text-sm font-semibold text-zinc-100">SPLIT AVERAGES</h2>
             <p class="mt-1 text-xs text-zinc-500">Individual split averages for each period</p>
           </div>
-          <BarChartAvgSplit :splitData="splitData" :segmentStats="segmentStats" />
+          <BarChartAvgSplit :key="route.params.id" :splitData="splitData" :segmentStats="segmentStats" />
         </article>
 
         <article class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
@@ -125,16 +120,13 @@
 
       </div>
 
-      <article v-if="!error" class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
+      <article v-if="!loading" class="min-w-0 border border-white/10 bg-[#151517] px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
         <div class="mb-4 border-b border-white/10 pb-3">
           <h2 class="text-sm font-semibold text-zinc-100">PERSONAL BEST HISTORY</h2>
           <p class="mt-1 text-xs text-zinc-500">Progression of personal best times over time</p>
         </div>
         <PlayerProgressionChart :records="progressionRecords" :loading="progressionLoading" :error="progressionError" />
       </article>
-    </div>
-    <div v-else class="border border-white/10 bg-[#151517] px-5 py-8 text-sm text-zinc-400">
-      No data for this player.
     </div>
 
   </section>
@@ -144,7 +136,7 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PlayerDetails from '@/components/PlayerDetails.vue'
-import { fetchDataPacemanApi, fetchPlayerRunHistory, getPlayerDataByDay, getPlayerCompletionStatsByDay, getPlayerCompletionConversionRank, trimAllDataByPlayerId, getDataLeaderboardByPlayer, getMinecraftProfileName, getPlayerStatsForAllPeriods, uniqueSplitTimeAllPeriods } from '@/services/playerService.js'
+import { fetchDataPacemanApi, fetchPlayerRunHistory, fetchSharedSplitStats, getPlayerDataByDay, getPlayerCompletionStatsByDay, trimAllDataByPlayerId, getDataLeaderboardByPlayer, getMinecraftProfileName, getPlayerStatsForAllPeriods, uniqueSplitTimeAllPeriods } from '@/services/playerService.js'
 import BarChartSplitStats from '@/components/BarChartSplitStats.vue'
 import BarChartAvgFastestSplit from '@/components/BarChartAvgFastestSplit.vue'
 import BarChartAvgSplit from '@/components/BarChartAvgSplit.vue'
@@ -154,10 +146,34 @@ import PlayerProgressionChart from '@/components/PlayerProgressionChart.vue'
 import BoxPlotChartSplitDistribution from '@/components/BoxPlotChartSplitDistribution.vue'
 import { fetchPlayerProgression } from '@/services/playerService.js'
 const route = useRoute()
-const advancedData = ref(null)
-const splitData = ref(null)
-const segmentStats = ref(null)
-const segmentTimes = ref(null)
+const playerSplits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
+
+function createEmptyPlayerStats(nickname) {
+  const periodStats = getPlayerStatsForAllPeriods([], nickname)
+  return {
+    advancedData: {
+      nickname: nickname.trim(),
+      data: Object.fromEntries(playerSplits.map(split => [
+        split,
+        { sum: 0, avg: undefined, fastest: undefined, counter: 0 }
+      ])),
+      completionCount: 0,
+      completionStats: { counter: 0 },
+      place: undefined,
+      completionTime: undefined,
+      lastRun: null
+    },
+    splitData: uniqueSplitTimeAllPeriods(periodStats.splitData),
+    segmentStats: periodStats.segmentStats,
+    segmentTimes: periodStats.segmentTimes
+  }
+}
+
+const initialPlayerStats = createEmptyPlayerStats(route.params.id)
+const advancedData = ref(initialPlayerStats.advancedData)
+const splitData = ref(initialPlayerStats.splitData)
+const segmentStats = ref(initialPlayerStats.segmentStats)
+const segmentTimes = ref(initialPlayerStats.segmentTimes)
 const netherEntries = ref([])
 const progressionRecords = ref([])
 const progressionLoading = ref(true)
@@ -187,22 +203,94 @@ const selectedPeriodName = computed(() => {
   return periodLabels[selectedDays.value]
 })
 let latestRequest = 0
+let latestPeriodRequest = 0
 let cachedPlayerData = null
 let cachedPlayerId = ''
+let cachedPlayerHasRuns = false
+let cachedSharedRankings = new Map()
+const rankingPeriods = [
+  { days: 1, key: 'avg1d' },
+  { days: 7, key: 'avg7d' },
+  { days: 30, key: 'avg30d' },
+  { days: 9999, key: 'avgAT' }
+]
 
-const getPlayerDataForPeriod = (playerData, id, selectedDay) => {
+async function fetchSharedRankingsForPlayer(id) {
+  const entries = await Promise.all(rankingPeriods.map(async ({ days }) => {
+    try {
+      return [days, await fetchSharedSplitStats(id, days)]
+    } catch (rankingError) {
+      console.error(`Unable to load shared AA rankings for ${days} days:`, rankingError)
+      return [days, null]
+    }
+  }))
+  return new Map(entries)
+}
+
+function applySharedPeriodStats(playerPeriodStats, sharedRankings) {
+  const splitData = Object.fromEntries(
+    Object.entries(playerPeriodStats.splitData).map(([split, periods]) => [split, { ...periods }])
+  )
+  const segmentStats = Object.fromEntries(
+    Object.entries(playerPeriodStats.segmentStats).map(([segment, periods]) => [
+      segment,
+      Object.fromEntries(Object.entries(periods).map(([period, stats]) => [period, { ...stats }]))
+    ])
+  )
+
+  for (const { days, key } of rankingPeriods) {
+    const snapshot = sharedRankings.get(days)
+    if (!snapshot) continue
+    for (const [split, stats] of Object.entries(snapshot.stats)) {
+      if (splitData[split]) splitData[split][key] = stats.avg
+    }
+    for (const [segment, stats] of Object.entries(snapshot.segments)) {
+      if (segmentStats[segment]) segmentStats[segment][key] = stats
+    }
+  }
+  return { splitData, segmentStats }
+}
+
+const getPlayerDataForPeriod = async (playerData, id, selectedDay, sharedRankings) => {
   const periodData = getPlayerDataByDay(playerData, selectedDay, id)
   const playerDataTrimmed = trimAllDataByPlayerId(periodData, id)
+  const sharedRanking = sharedRankings.get(selectedDay)
+
+  if (sharedRanking) {
+    for (const [split, sharedStats] of Object.entries(sharedRanking.stats)) {
+      const splitStats = playerDataTrimmed.data[split]
+      if (!splitStats) continue
+      Object.assign(splitStats, {
+        avg: sharedStats.avg,
+        counter: sharedStats.counter,
+        fastest: sharedStats.fastest,
+        lbAvg: sharedStats.lbAvg,
+        lbCounter: sharedStats.lbCounter,
+        lbFastest: sharedStats.lbFastest,
+        lbConversion: sharedStats.lbConversion,
+        conversion: sharedStats.conversion,
+        sharedLeaderboard: true
+      })
+    }
+  } else {
+    for (const splitStats of Object.values(playerDataTrimmed.data)) {
+      splitStats.lbAvg = undefined
+      splitStats.lbCounter = undefined
+      splitStats.lbFastest = undefined
+      splitStats.lbConversion = undefined
+      splitStats.sharedLeaderboard = false
+    }
+  }
+
   const requestedNickname = id.trim().toLowerCase()
   const playerRuns = playerData.filter(run =>
     typeof run?.nickname === 'string' &&
     run.nickname.trim().toLowerCase() === requestedNickname
   )
 
-  const completionStats = {
-    ...getPlayerCompletionStatsByDay(playerRuns, selectedDay),
-    lbConversion: getPlayerCompletionConversionRank(playerData, selectedDay, id)
-  }
+  const completionStats = sharedRanking
+    ? sharedRanking.completionStats
+    : getPlayerCompletionStatsByDay(playerRuns, selectedDay)
   return {
     ...playerDataTrimmed,
     completionCount: completionStats.counter,
@@ -212,15 +300,21 @@ const getPlayerDataForPeriod = (playerData, id, selectedDay) => {
 
 const fetchPlayer = async (id, day) => {
   const request = ++latestRequest
-  cachedPlayerData = null
-  cachedPlayerId = ''
-  const isSamePlayer = id.trim().toLowerCase() === advancedData.value?.nickname?.trim().toLowerCase()
+  latestPeriodRequest++
+  const isSamePlayer = cachedPlayerData !== null && cachedPlayerId === id.trim().toLowerCase()
   const existingPlace = isSamePlayer ? advancedData.value.place : undefined
   const existingCompletionTime = isSamePlayer ? advancedData.value.completionTime : undefined
-  if (!isSamePlayer) advancedData.value = null
-  splitData.value = null
-  segmentStats.value = null
-  segmentTimes.value = null
+  cachedPlayerData = null
+  cachedPlayerId = ''
+  cachedPlayerHasRuns = false
+  cachedSharedRankings = new Map()
+  if (!isSamePlayer) {
+    const emptyStats = createEmptyPlayerStats(id)
+    advancedData.value = emptyStats.advancedData
+    splitData.value = emptyStats.splitData
+    segmentStats.value = emptyStats.segmentStats
+    segmentTimes.value = emptyStats.segmentTimes
+  }
   netherEntries.value = []
   progressionRecords.value = []
   progressionLoading.value = true
@@ -235,9 +329,15 @@ const fetchPlayer = async (id, day) => {
         leaderboard => ({ leaderboard }),
         error => ({ error })
       )
-    const [globalData, playerRuns, profileResult, progressionResult, leaderboardResult] = await Promise.all([
-      fetchDataPacemanApi(),
-      fetchPlayerRunHistory(id),
+    const [globalDataResult, playerRunsResult, profileResult, progressionResult, leaderboardResult] = await Promise.all([
+      fetchDataPacemanApi().then(
+        data => ({ data }),
+        error => ({ error })
+      ),
+      fetchPlayerRunHistory(id).then(
+        runs => ({ runs }),
+        error => ({ error })
+      ),
       getMinecraftProfileName(id).then(
         name => ({ name }),
         error => ({ error })
@@ -249,6 +349,12 @@ const fetchPlayer = async (id, day) => {
       leaderboardRequest
     ])
     if (request !== latestRequest) return
+    if ('error' in globalDataResult) {
+      console.error('Unable to load Paceman all-player data:', globalDataResult.error)
+    }
+    if ('error' in playerRunsResult) {
+      console.error('Unable to load Paceman player history:', playerRunsResult.error)
+    }
     if ('error' in progressionResult) {
       console.error('Unable to load player progression:', progressionResult.error)
       progressionError.value = true
@@ -257,6 +363,8 @@ const fetchPlayer = async (id, day) => {
     }
     progressionLoading.value = false
 
+    const globalData = 'data' in globalDataResult ? globalDataResult.data : []
+    const playerRuns = 'runs' in playerRunsResult ? playerRunsResult.runs : []
     const playerData = playerRuns.length
       ? [
         ...globalData.filter(run => run.nickname.trim().toLowerCase() !== id.trim().toLowerCase()),
@@ -275,16 +383,21 @@ const fetchPlayer = async (id, day) => {
       playerNetherEntries.push(run)
       if (!lastRun || run.insertTime > lastRun) lastRun = run.insertTime
     }
-    if (!hasPlayerRuns) return
-    netherEntries.value = playerNetherEntries
+    if (hasPlayerRuns) netherEntries.value = playerNetherEntries
 
-    // Advanced BarChartBuild the data for the said player as long as all the leaderboards for avgs, fastest and numbers
-    const playerDataTrimmed = getPlayerDataForPeriod(playerData, id, day)
+    cachedSharedRankings = hasPlayerRuns
+      ? await fetchSharedRankingsForPlayer(id)
+      : new Map()
+    const playerDataTrimmed = hasPlayerRuns
+      ? await getPlayerDataForPeriod(playerData, id, day, cachedSharedRankings)
+      : createEmptyPlayerStats(id).advancedData
+    if (request !== latestRequest) return
 
-    const playerPeriodStats = getPlayerStatsForAllPeriods(playerData, id)
+    const playerPeriodStats = getPlayerStatsForAllPeriods(hasPlayerRuns ? playerData : [], id)
+    const sharedPeriodStats = applySharedPeriodStats(playerPeriodStats, cachedSharedRankings)
 
     // Build the unique time of each split for all periods
-    const eachSplitTimeAllPeriod = uniqueSplitTimeAllPeriods(playerPeriodStats.splitData) // Avg Split Time BarChart
+    const eachSplitTimeAllPeriod = uniqueSplitTimeAllPeriods(sharedPeriodStats.splitData) // Avg Split Time BarChart
 
     if (request !== latestRequest) return
 
@@ -303,12 +416,15 @@ const fetchPlayer = async (id, day) => {
       lastRun
     }
     splitData.value = eachSplitTimeAllPeriod
-    segmentStats.value = playerPeriodStats.segmentStats
+    segmentStats.value = sharedPeriodStats.segmentStats
     segmentTimes.value = playerPeriodStats.segmentTimes
 
     if (!isSamePlayer) {
       if ('error' in leaderboardResult) {
         console.error('Unable to load leaderboard:', leaderboardResult.error)
+        nextAdvancedData.place = undefined
+        nextAdvancedData.completionTime = undefined
+      } else if (!hasPlayerRuns && progressionRecords.value.length === 0) {
         nextAdvancedData.place = undefined
         nextAdvancedData.completionTime = undefined
       } else {
@@ -321,6 +437,7 @@ const fetchPlayer = async (id, day) => {
       advancedData.value = nextAdvancedData
       cachedPlayerData = playerData
       cachedPlayerId = id.trim().toLowerCase()
+      cachedPlayerHasRuns = hasPlayerRuns
     }
   } catch (e) {
     console.error('Unable to load player statistics:', e)
@@ -333,18 +450,38 @@ const fetchPlayer = async (id, day) => {
   }
 }
 
-function changeDay(newDay) {
+async function changeDay(newDay) {
   if (newDay === day.value) return
   day.value = newDay
 
   const id = route.params.id
-  if (cachedPlayerData && cachedPlayerId === id.trim().toLowerCase()) {
-    const playerDataTrimmed = getPlayerDataForPeriod(cachedPlayerData, id, day.value)
-    advancedData.value = {
-      ...advancedData.value,
-      data: playerDataTrimmed.data,
-      completionCount: playerDataTrimmed.completionCount,
-      completionStats: playerDataTrimmed.completionStats
+  if (cachedPlayerData !== null && cachedPlayerId === id.trim().toLowerCase()) {
+    if (!cachedPlayerHasRuns) return
+
+    const periodRequest = ++latestPeriodRequest
+    loading.value = true
+    error.value = ''
+    try {
+      const playerDataTrimmed = await getPlayerDataForPeriod(
+        cachedPlayerData,
+        id,
+        day.value,
+        cachedSharedRankings
+      )
+      if (periodRequest !== latestPeriodRequest || cachedPlayerId !== id.trim().toLowerCase()) return
+      advancedData.value = {
+        ...advancedData.value,
+        data: playerDataTrimmed.data,
+        completionCount: playerDataTrimmed.completionCount,
+        completionStats: playerDataTrimmed.completionStats
+      }
+    } catch (periodError) {
+      console.error('Unable to load player statistics for the selected period:', periodError)
+      if (periodRequest === latestPeriodRequest) {
+        error.value = 'Unable to load player statistics. Please try again later.'
+      }
+    } finally {
+      if (periodRequest === latestPeriodRequest) loading.value = false
     }
     return
   }

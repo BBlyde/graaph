@@ -1,10 +1,15 @@
 # ROADMAP
 P0
+backend pas traquer par git?
+vérifier les données cohérences entres les splits des graphs
+playerpage: graph des rankings par split pour la période (avg et fastest) ?
 sur le troisieme graph comprendre la différence du nombre de nether et de bastion
 fix données entre graph 3 et 5
-trim data : feinberg fastest end exits, cro slowest bastion
+filtrer data incohérentes avec des conditions spécifiques : feinberg fastest end exits, cro slowest bastion
 
 page accueil : box recent completion, Compteur de splis journalier (nether et end exit), meilleur joueur avg &number pour chaque split & chaque period & history wr
+
+éviter : Unable to load player statistics. Please try again later.
 
 P1
 responsive

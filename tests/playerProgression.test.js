@@ -4,8 +4,8 @@ import {
   fetchDataPacemanApi,
   fetchPlayerProgression,
   fetchPlayerRunHistory,
+  getAllLeaderboardData,
   getPlayerCompletionStatsByDay,
-  getPlayerCompletionConversionRank,
   getPlayerDataByDay,
   trimAllDataByPlayerId,
   getPlayerStatsForAllPeriods,
@@ -31,28 +31,6 @@ test('completion count includes only completed runs in the selected period', () 
     fastest: 8_100_000,
     avg: 8_190_000
   })
-})
-
-test('completion conversion rank compares completions with credit splits', () => {
-  const now = Date.now()
-  const insertTime = new Date(now - 60_000).toISOString()
-  const completedRuns = (nickname, count, completions) =>
-    Array.from({ length: count }, (_, index) => ({
-      nickname,
-      insertTime,
-      nether: 180000,
-      elytra: 600000,
-      credits: 500000,
-      ...(index < completions ? { finish: 600000 } : {})
-    }))
-  const runs = [
-    ...completedRuns('Alpha', 4, 3),
-    ...completedRuns('Target', 2, 2),
-    ...completedRuns('Gamma', 4, 2)
-  ]
-
-  assert.equal(getPlayerCompletionConversionRank(runs, 1, 'target', now), 1)
-  assert.equal(getPlayerCompletionConversionRank(runs, 1, 'unknown', now), undefined)
 })
 
 test('global Paceman data requests are shared and cached', async t => {
@@ -104,7 +82,7 @@ test('player run history is cached by normalized nickname', async t => {
   assert.equal(first[0].insertTime, new Date(1704067200000).toISOString())
 })
 
-test('period rankings preserve positions and insertion order for ties', () => {
+test('period split statistics do not calculate local leaderboard ranks', () => {
   const insertTime = new Date().toISOString()
   const runs = [
     { nickname: 'Alpha', insertTime, nether: 180000 },
@@ -114,14 +92,8 @@ test('period rankings preserve positions and insertion order for ties', () => {
 
   const playerData = getPlayerDataByDay(runs, 9999, 'target')
   const stats = playerData[0].target.nether
-  const avgRank = playerData[1].nether[0].position
-  const fastestRank = playerData[2].nether[0].position
-  const counterRank = playerData[3].nether[0].position
-
   assert.equal(stats.avg, 180000)
-  assert.equal(avgRank, 3)
-  assert.equal(fastestRank, 3)
-  assert.equal(counterRank, 2)
+  assert.deepEqual(playerData.slice(1), [{}, {}, {}, {}])
 })
 
 test('period stats exclude runs with credits but no elytra', () => {
@@ -137,7 +109,7 @@ test('period stats exclude runs with credits but no elytra', () => {
   assert.equal(playerData[0].target.nether.counter, 2)
 })
 
-test('split conversion ranks compare each split count with the previous split count', () => {
+test('local split conversion metrics do not assign leaderboard ranks', () => {
   const insertTime = new Date().toISOString()
   const runs = [
     ...Array.from({ length: 4 }, () => ({ nickname: 'Alpha', insertTime, nether: 180000 })),
@@ -151,11 +123,11 @@ test('split conversion ranks compare each split count with the previous split co
   const advancedData = trimAllDataByPlayerId(playerData, 'target')
 
   assert.equal(advancedData.data.bastion.counter / advancedData.data.nether.counter, 1)
-  assert.equal(advancedData.data.bastion.lbConversion, 1)
+  assert.equal(advancedData.data.bastion.lbConversion, undefined)
   assert.equal(advancedData.data.nether.lbConversion, undefined)
 })
 
-test('segment rankings preserve positions and insertion order for ties', () => {
+test('segment statistics do not calculate local leaderboard ranks', () => {
   const insertTime = new Date().toISOString()
   const runs = [
     { nickname: 'Alpha', insertTime, nether: 180000, bastion: 300000 },
@@ -165,12 +137,12 @@ test('segment rankings preserve positions and insertion order for ties', () => {
 
   const stats = getPlayerSplitStatsForAllPeriods(runs, 'target').overworld.avgAT
 
-  assert.equal(stats.lbAvg, 3)
-  assert.equal(stats.lbFastest, 3)
-  assert.equal(stats.lbCounter, 2)
+  assert.equal(stats.lbAvg, undefined)
+  assert.equal(stats.lbFastest, undefined)
+  assert.equal(stats.lbCounter, undefined)
 })
 
-test('split average conversion ranks compare segment counts with the previous segment', () => {
+test('local segment conversion metrics do not assign leaderboard ranks', () => {
   const insertTime = new Date().toISOString()
   const runs = [
     ...Array.from({ length: 4 }, () => ({ nickname: 'Alpha', insertTime, nether: 180000 })),
@@ -183,7 +155,7 @@ test('split average conversion ranks compare segment counts with the previous se
   const stats = getPlayerSplitStatsForAllPeriods(runs, 'target')
 
   assert.equal(stats.nether.avgAT.counter / stats.overworld.avgAT.counter, 1)
-  assert.equal(stats.nether.avgAT.lbConversion, 1)
+  assert.equal(stats.nether.avgAT.lbConversion, undefined)
   assert.equal(stats.overworld.avgAT.lbConversion, undefined)
 })
 
@@ -231,6 +203,40 @@ test('progression keeps only strictly improving times in chronological order for
   assert.deepEqual(alpha.map(record => new Date(record.timestamp).getUTCDate()), [1, 3, 5])
   assert.deepEqual(beta.map(record => record.time), [10800000, 7200000])
   assert.deepEqual(missing, [])
+})
+
+test('leaderboard runners resolve matched UUIDs and preserve unmatched player names', async t => {
+  const csv = [
+    'INPUT API TOTO,IGN TEMPORAIRE,uuid',
+    ' oldrunner ,TemporaryName,33475ce5-e208-45cb-8ba9-7a3e08fc46b8'
+  ].join('\n')
+  const requestedUrls = []
+  t.mock.method(globalThis, 'fetch', async input => {
+    const url = new URL(input, 'http://localhost')
+    requestedUrls.push(url.pathname)
+    if (url.pathname.endsWith('/spreadsheets/d/1b_ophpRolFOpeHrlG8xbiRieSYFTAGJcY9UrvE5Uxd4/export')) {
+      return new Response(csv)
+    }
+    if (url.pathname.endsWith('/leaderboard/all')) {
+      return new Response(JSON.stringify({
+        runs: [{ place: 1, players: ['OldRunner', 'UnmappedRunner'], completionTime: '1:23' }]
+      }))
+    }
+    if (url.pathname.endsWith('/ranking-api/minecraft-profile')) {
+      assert.equal(url.searchParams.get('uuid'), '33475ce5-e208-45cb-8ba9-7a3e08fc46b8')
+      return new Response(JSON.stringify({ name: 'CurrentName' }))
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+
+  const [result] = await getAllLeaderboardData()
+
+  assert.deepEqual(result.players, ['CurrentName', 'UnmappedRunner'])
+  assert.deepEqual(requestedUrls.sort(), [
+    '/ranking-api/minecraft-profile',
+    '/secure-api/api/leaderboard/all',
+    '/spreadsheets/d/1b_ophpRolFOpeHrlG8xbiRieSYFTAGJcY9UrvE5Uxd4/export'
+  ].sort())
 })
 
 test('segment distributions include each run’s Outer End time', () => {

@@ -1,4 +1,5 @@
 const progressionSheetUrl = 'https://docs.google.com/spreadsheets/d/107ijqjELTQQ29KW4phUmtvYFTX9-pfHsjb18TKoWACk/gviz/tq?tqx=out:csv&gid=735237004'
+const leaderboardRunnersSheetUrl = 'https://docs.google.com/spreadsheets/d/1b_ophpRolFOpeHrlG8xbiRieSYFTAGJcY9UrvE5Uxd4/export?format=csv&gid=0'
 const responseCache = new Map()
 const responseCacheTtlMs = 5 * 60_000
 const responseCacheDatabaseName = 'graaph-api-cache'
@@ -159,7 +160,7 @@ function parseCsvRows(csv) {
     }
   }
 
-  if (isQuoted) throw new Error('Invalid progression sheet CSV')
+  if (isQuoted) throw new Error('Invalid sheet CSV')
   if (cell || row.length) {
     row.push(cell)
     if (row.some(value => value.trim())) rows.push(row)
@@ -235,6 +236,74 @@ export async function fetchDataPacemanApi() {
     if (!Array.isArray(json.data)) throw new Error('Invalid Paceman API response')
     return json.data
   })
+}
+
+export async function fetchSharedSplitStats(nickname, day) {
+  const params = new URLSearchParams({ nickname, days: String(day) })
+  const response = await fetch(`/ranking-api/player?${params}`)
+  if (!response.ok) throw new Error(`Shared AA rankings API error (${response.status})`)
+  const payload = await response.json()
+  if (
+    payload?.days !== day ||
+    typeof payload.updatedAt !== 'string' ||
+    !Number.isFinite(Date.parse(payload.updatedAt)) ||
+    !payload.stats ||
+    typeof payload.stats !== 'object' ||
+    Array.isArray(payload.stats) ||
+    !payload.completionStats ||
+    typeof payload.completionStats !== 'object' ||
+    Array.isArray(payload.completionStats) ||
+    !payload.segments ||
+    typeof payload.segments !== 'object' ||
+    Array.isArray(payload.segments)
+  ) {
+    throw new Error('Invalid shared AA rankings response')
+  }
+  for (const stats of Object.values(payload.stats)) {
+    if (
+      !stats ||
+      !Number.isFinite(stats.counter) ||
+      stats.counter < 0 ||
+      ['avg', 'fastest', 'conversion'].some(field =>
+        stats[field] !== undefined && !Number.isFinite(stats[field])
+      ) ||
+      ['lbAvg', 'lbFastest', 'lbCounter', 'lbConversion'].some(field =>
+        stats[field] !== undefined && (!Number.isInteger(stats[field]) || stats[field] < 1)
+      )
+    ) {
+      throw new Error('Invalid shared AA split statistics')
+    }
+  }
+  for (const stats of Object.values(payload.segments)) {
+    if (
+      !stats ||
+      !Number.isFinite(stats.counter) ||
+      stats.counter < 0 ||
+      ['avg', 'fastest', 'conversion'].some(field =>
+        stats[field] !== undefined && !Number.isFinite(stats[field])
+      ) ||
+      ['lbAvg', 'lbFastest', 'lbCounter', 'lbConversion'].some(field =>
+        stats[field] !== undefined && (!Number.isInteger(stats[field]) || stats[field] < 1)
+      )
+    ) {
+      throw new Error('Invalid shared AA segment statistics')
+    }
+  }
+  const completionStats = payload.completionStats
+  if (
+    !Number.isFinite(completionStats.counter) ||
+    completionStats.counter < 0 ||
+    ['avg', 'fastest', 'conversion'].some(field =>
+      completionStats[field] !== undefined && !Number.isFinite(completionStats[field])
+    ) ||
+    ['lbAvg', 'lbFastest', 'lbCounter', 'lbConversion'].some(field =>
+      completionStats[field] !== undefined &&
+      (!Number.isInteger(completionStats[field]) || completionStats[field] < 1)
+    )
+  ) {
+    throw new Error('Invalid shared AA completion statistics')
+  }
+  return payload
 }
 
 export async function fetchPlayerRunHistory(nickname) {
@@ -330,17 +399,62 @@ async function fetchLeaderboardSearchResults(nickname) {
   return data.results
 }
 
+async function fetchLeaderboardRunnerMappings() {
+  return getCachedRequest('leaderboard:runner-mappings', async () => {
+    const response = await fetch(leaderboardRunnersSheetUrl)
+    if (!response.ok) throw new Error(`Leaderboard runners sheet error (${response.status})`)
+
+    const rows = parseCsvRows(await response.text())
+    const headers = rows.shift()?.map(value => value.trim())
+    if (!headers) throw new Error('Invalid leaderboard runners sheet response')
+
+    const normalizeHeader = value => value.replace(/^\uFEFF/, '').trim().toLowerCase()
+    if (
+      normalizeHeader(headers[0] ?? '') !== 'input api toto' ||
+      normalizeHeader(headers[2] ?? '') !== 'uuid'
+    ) {
+      throw new Error('Invalid leaderboard runners sheet columns')
+    }
+
+    const mappings = new Map()
+    for (const row of rows) {
+      const name = row[0]?.trim()
+      const uuid = row[2]?.trim()
+      if (!name || !uuid) throw new Error('Invalid runner in leaderboard runners sheet')
+      if (!/^(?:[0-9a-f]{32}|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(uuid)) {
+        throw new Error('Invalid runner UUID in leaderboard runners sheet')
+      }
+      mappings.set(name.toLowerCase(), { uuid })
+    }
+    return mappings
+  })
+}
+
+export async function getMinecraftProfileNameByUuid(uuid) {
+  const params = new URLSearchParams({ uuid })
+  const response = await fetch(`/ranking-api/minecraft-profile?${params}`)
+  if (!response.ok) throw new Error(`Minecraft profile API error (${response.status})`)
+  const profile = await response.json()
+  if (typeof profile.name !== 'string' || !profile.name.trim()) {
+    throw new Error('Invalid Minecraft profile API response')
+  }
+  return profile.name.trim()
+}
+
 export async function getAllLeaderboardData(board = 'aa') {
   if (!['aa', 'thunderless'].includes(board)) {
     throw new Error('Invalid leaderboard board')
   }
   const apiBoard = board === 'aa' ? 'rsg' : board
-  const response = await fetch(`/secure-api/api/leaderboard/all?cat=aa&board=${encodeURIComponent(apiBoard)}`)
+  const [response, runnerMappings] = await Promise.all([
+    fetch(`/secure-api/api/leaderboard/all?cat=aa&board=${encodeURIComponent(apiBoard)}`),
+    fetchLeaderboardRunnerMappings()
+  ])
   if (!response.ok) throw new Error(`Leaderboard API error (${response.status})`)
   const data = await response.json()
   if (!Array.isArray(data.runs)) throw new Error('Invalid leaderboard API response')
 
-  return data.runs.map(run => {
+  const runs = data.runs.map(run => {
     if (!Number.isFinite(run?.place) || run.place < 1) {
       throw new Error('Invalid leaderboard place')
     }
@@ -356,6 +470,23 @@ export async function getAllLeaderboardData(board = 'aa') {
       completionTime: run.completionTime
     }
   })
+
+  const matchedUuids = new Set(runs.flatMap(run =>
+    run.players
+      .map(player => runnerMappings.get(player.trim().toLowerCase())?.uuid)
+      .filter(Boolean)
+  ))
+  const currentNames = new Map(await Promise.all(
+    [...matchedUuids].map(async uuid => [uuid, await getMinecraftProfileNameByUuid(uuid)])
+  ))
+
+  return runs.map(run => ({
+    ...run,
+    players: run.players.map(player => {
+      const uuid = runnerMappings.get(player.trim().toLowerCase())?.uuid
+      return uuid ? currentNames.get(uuid) : player
+    })
+  }))
 }
 
 export async function getDataLeaderboardByPlayer(nickname) {
@@ -396,30 +527,7 @@ export function getRunnerHeadUrl(nickname) {
 
 ////// FUNCTIONS TO MAKE THE GRAPHS
 
-function getTargetRank(entries, targetPlayer, getValue, descending = false, isEligible = () => true) {
-  const targetIndex = entries.findIndex(([player]) => player === targetPlayer)
-  if (targetIndex < 0) return undefined
-
-  const targetValue = getValue(entries[targetIndex][1])
-  if (!isEligible(targetValue)) return undefined
-
-  let rank = 1
-  entries.forEach(([, entry], index) => {
-    if (index === targetIndex) return
-    const value = getValue(entry)
-    if (!isEligible(value)) return
-
-    if (
-      (descending ? value > targetValue : value < targetValue) ||
-      (value === targetValue && index < targetIndex)
-    ) {
-      rank++
-    }
-  })
-  return rank
-}
-
-/* Build the data for the said player as long as all the leaderboards for avgs, fastest and numbers */
+/* Build per-player split statistics; comparative ranks come from the shared ranking service. */
 export function getPlayerDataByDay(data, day, nickname = '') {
   const splits = ['nether', 'bastion', 'fortress', 'stronghold', 'end', 'elytra', 'credits']
   const requestedPlayer = nickname.trim().toLowerCase()
@@ -474,52 +582,7 @@ export function getPlayerDataByDay(data, day, nickname = '') {
     })
   }
 
-  const buildTargetRankings = (field, metric, descending = false) =>
-    Object.fromEntries(splits.map(split => {
-      const entries = Object.entries(playersStats)
-        .filter(([, stats]) => stats[split].counter > 0)
-      const position = getTargetRank(
-        entries,
-        requestedPlayer,
-        stats => field === 'avg'
-          ? stats[split].sum / stats[split].counter
-          : stats[split][field],
-        descending
-      )
-      const stats = playersStats[requestedPlayer]?.[split]
-      const value = stats && (field === 'avg' ? stats.sum / stats.counter : stats[field])
-      return [split, position === undefined
-        ? []
-        : [{ name: requestedPlayer, split, [metric]: value, position }]
-      ]
-    }))
-
-  const rankedAvg = buildTargetRankings('avg', 'time')
-  const rankedFastest = buildTargetRankings('fastest', 'time')
-  const rankedCounter = buildTargetRankings('counter', 'number', true)
-  const getConversion = (stats, splitIndex) => {
-    const previousSplit = splits[splitIndex - 1]
-    const previousCounter = stats[previousSplit].counter
-    return previousCounter > 0
-      ? stats[splits[splitIndex]].counter / previousCounter
-      : undefined
-  }
-  const rankedConversion = Object.fromEntries(splits.map((split, splitIndex) => {
-    if (splitIndex === 0) return [split, []]
-
-    const conversionForSplit = stats => getConversion(stats, splitIndex)
-    const entries = Object.entries(playersStats)
-      .filter(([, stats]) => Number.isFinite(conversionForSplit(stats)))
-    const position = getTargetRank(entries, requestedPlayer, conversionForSplit, true)
-    const value = playersStats[requestedPlayer]
-      ? conversionForSplit(playersStats[requestedPlayer])
-      : undefined
-    return [split, position === undefined
-      ? []
-      : [{ name: requestedPlayer, split, conversion: value, position }]
-    ]
-  }))
-  return [playersSplit, rankedAvg, rankedFastest, rankedCounter, rankedConversion]
+  return [playersSplit, {}, {}, {}, {}]
 }
 
 export function getPlayerCompletionStatsByDay(data, day, now = Date.now()) {
@@ -543,47 +606,11 @@ export function getPlayerCompletionStatsByDay(data, day, now = Date.now()) {
   }
 }
 
-export function getPlayerCompletionConversionRank(data, day, nickname, now = Date.now()) {
-  const cutoff = now - 24 * 60 * 60 * 1000 * day
-  const requestedPlayer = nickname.trim().toLowerCase()
-  const playersStats = {}
-
-  data.forEach(run => {
-    if (typeof run?.nickname !== 'string') return
-    const timestamp = Date.parse(run.insertTime)
-    if (!Number.isFinite(timestamp) || timestamp < cutoff) return
-
-    const player = run.nickname.trim().toLowerCase()
-    const stats = playersStats[player] ??= { credits: 0, completions: 0 }
-    if (Number.isFinite(run.finish) && run.finish > 0) stats.completions++
-    if (hasReachedNetherOrEnd(run) && run.credits) stats.credits++
-  })
-
-  const conversionRate = stats => stats.completions / stats.credits
-  const entries = Object.entries(playersStats)
-    .filter(([, stats]) => stats.credits > 0)
-  return getTargetRank(entries, requestedPlayer, conversionRate, true)
-}
-
 /* Trimming the advanced datas */
 export function trimAllDataByPlayerId(datas, id) {
   /* Defining player's properties */
   const nickname = id
   id = id.trim().toLowerCase()
-
-  const getPlayerPositions = leaderboard => {
-    const positions = {}
-    for (const [split, entries] of Object.entries(leaderboard)) {
-      for (const entry of entries) {
-        if (entry.name == id && entry.split == split) positions[split] = entry.position
-      }
-    }
-    return positions
-  }
-  const avgPositions = getPlayerPositions(datas[1])
-  const fastestPositions = getPlayerPositions(datas[2])
-  const counterPositions = getPlayerPositions(datas[3])
-  const conversionPositions = datas[4] ? getPlayerPositions(datas[4]) : {}
 
   const dataPlayer = []
   // Pathing the raw datas
@@ -593,11 +620,6 @@ export function trimAllDataByPlayerId(datas, id) {
       // Accessing each split's data
       for (const [split, splitData] of Object.entries(playerData)) {
         dataPlayer[split] = splitData
-
-        if (avgPositions[split] !== undefined) splitData.lbAvg = avgPositions[split]
-        if (fastestPositions[split] !== undefined) splitData.lbFastest = fastestPositions[split]
-        if (counterPositions[split] !== undefined) splitData.lbCounter = counterPositions[split]
-        if (conversionPositions[split] !== undefined) splitData.lbConversion = conversionPositions[split]
       }
     }
   }
@@ -727,53 +749,15 @@ export function getPlayerStatsForAllPeriods(data, nickname) {
 
   const segmentStatsByPeriod = Object.fromEntries(segments.map(segment => [segment, {}]))
   periods.forEach(({ key }, periodIndex) => {
-    const playerStats = periodStats[periodIndex]
-    const playerEntries = Object.entries(playerStats)
-    const rankings = [
-      { field: 'avg', rank: 'lbAvg', descending: false },
-      { field: 'fastest', rank: 'lbFastest', descending: false },
-      { field: 'counter', rank: 'lbCounter', descending: true }
-    ]
-
-    segments.forEach((segment, index) => {
-      const playerSegmentStats = playerStats[requestedPlayer]?.segments[segment]
-      if (playerSegmentStats) {
-        rankings.forEach(({ field, rank, descending }) => {
-          const position = getTargetRank(
-            playerEntries,
-            requestedPlayer,
-            stats => stats.segments[segment][field],
-            descending,
-            value => Number.isFinite(value) && value > 0
-          )
-          if (position !== undefined) playerSegmentStats[rank] = position
-        })
-
-        if (index > 0) {
-          const previousSegment = segments[index - 1]
-          const getConversion = stats => {
-            const previousCounter = stats.segments[previousSegment].counter
-            return previousCounter > 0
-              ? stats.segments[segment].counter / previousCounter
-              : undefined
-          }
-          const position = getTargetRank(
-            playerEntries,
-            requestedPlayer,
-            getConversion,
-            true,
-            Number.isFinite
-          )
-          if (position !== undefined) playerSegmentStats.lbConversion = position
+    const playerStats = periodStats[periodIndex][requestedPlayer]
+    segments.forEach(segment => {
+      const stats = playerStats?.segments[segment]
+      segmentStatsByPeriod[segment][key] = stats
+        ? {
+          ...stats,
+          fastest: Number.isFinite(stats.fastest) ? stats.fastest : undefined
         }
-
-        segmentStatsByPeriod[segment][key] = {
-          ...playerSegmentStats,
-          fastest: Number.isFinite(playerSegmentStats.fastest) ? playerSegmentStats.fastest : undefined
-        }
-      } else {
-        segmentStatsByPeriod[segment][key] = { counter: 0 }
-      }
+        : { counter: 0 }
     })
   })
 
