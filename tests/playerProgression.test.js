@@ -41,6 +41,7 @@ test('completion conversion rank compares completions with credit splits', () =>
       nickname,
       insertTime,
       nether: 180000,
+      elytra: 600000,
       credits: 500000,
       ...(index < completions ? { finish: 600000 } : {})
     }))
@@ -121,6 +122,19 @@ test('period rankings preserve positions and insertion order for ties', () => {
   assert.equal(avgRank, 3)
   assert.equal(fastestRank, 3)
   assert.equal(counterRank, 2)
+})
+
+test('period stats exclude runs with credits but no elytra', () => {
+  const insertTime = new Date().toISOString()
+  const runs = [
+    { nickname: 'Target', insertTime, nether: 180000, end: 500000, credits: 900000, elytra: 600000 },
+    { nickname: 'Target', insertTime, nether: 180000, end: 500000, credits: 900000 },
+    { nickname: 'Target', insertTime, nether: 180000 }
+  ]
+
+  const playerData = getPlayerDataByDay(runs, 1, 'target')
+
+  assert.equal(playerData[0].target.nether.counter, 2)
 })
 
 test('split conversion ranks compare each split count with the previous split count', () => {

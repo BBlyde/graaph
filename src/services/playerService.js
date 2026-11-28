@@ -7,6 +7,10 @@ const responseCacheDatabaseName = 'graaph-api-cache'
 const responseCacheStoreName = 'responses'
 let responseCacheDatabasePromise = null
 
+function hasReachedNetherOrEnd(run) {
+  return (run.nether > 120000 || run.end) && !(run.credits && !run.elytra)
+}
+
 function openResponseCacheDatabase() {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null)
   if (responseCacheDatabasePromise) return responseCacheDatabasePromise
@@ -305,8 +309,7 @@ export async function sanitizeData(data, day) {
 
   const res = []
   data.forEach(runObject => {
-    // Only adding if (nether > 2m or player got elytra) and we verify if the run was played within x days
-    if ((runObject.nether > 120000 || runObject.elytra) && runObject.insertTime >= xDayAgo.toISOString()) {
+    if (hasReachedNetherOrEnd(runObject) && runObject.insertTime >= xDayAgo.toISOString()) {
       res.push(runObject)
     }
   });
@@ -443,7 +446,7 @@ export function getPlayerDataByDay(data, day, nickname = '') {
       })
     }
 
-    if (!((run.nether > 120000 || run.elytra > 120000) && run.insertTime >= cutoff)) return
+    if (!(hasReachedNetherOrEnd(run) && run.insertTime >= cutoff)) return
 
     splits.forEach(split => {
       const time = run[split]
@@ -555,7 +558,7 @@ export function getPlayerCompletionConversionRank(data, day, nickname, now = Dat
     const player = run.nickname.trim().toLowerCase()
     const stats = playersStats[player] ??= { credits: 0, completions: 0 }
     if (Number.isFinite(run.finish) && run.finish > 0) stats.completions++
-    if ((run.nether > 120000 || run.elytra > 120000) && run.credits) stats.credits++
+    if (hasReachedNetherOrEnd(run) && run.credits) stats.credits++
   })
 
   const conversionRate = stats => stats.completions / stats.credits
@@ -638,7 +641,7 @@ export function getPlayerStatsForAllPeriods(data, nickname) {
   ]))
 
   for (const run of data) {
-    if (!(run.nether > 120000 || run.elytra)) continue
+    if (!hasReachedNetherOrEnd(run)) continue
     const runNickname = run.nickname.toLowerCase()
     const isTargetForDistribution = typeof run.nickname === 'string' &&
       run.nickname.trim().toLowerCase() === requestedPlayer
